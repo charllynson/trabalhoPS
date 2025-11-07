@@ -6,6 +6,7 @@
 #define VM_SIC_CPU_H
 
 #include <cstdint>
+enum RegID {A = 0, X = 1, L = 2, B = 3, S = 4, T = 5, F = 6, PC = 8, SW = 9};
 
 struct Registradores {;
     std::int32_t A = 0;  // Acumulador
