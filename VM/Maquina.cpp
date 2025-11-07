@@ -2,22 +2,27 @@
 
 Maquina::Maquina(std::size_t tamanho_memoria) : memoria(tamanho_memoria){}
 
-void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
-    std::ifstream arquivo(caminhoArquivo, std::ios::binary);
-    if (!arquivo) {
-        std::cerr << "Erro ao abrir o arquivo: " << caminhoArquivo << std::endl;
-        return;
-    }
-
-    std::size_t endereco = 0;
-    int byte;
-    while((byte = arquivo.get()) != EOF) {
-        memoria.setByte(endereco++, static_cast<std::uint8_t>(byte));   
-    }
-
-    cpu.r.PC = 0; //inicio do programa
-
-}
+/*
+======================================
+    Função defasada, usar Loader.cpp
+======================================
+*/
+// void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
+//     std::ifstream arquivo(caminhoArquivo, std::ios::binary);
+//     if (!arquivo) {
+//         std::cerr << "Erro ao abrir o arquivo: " << caminhoArquivo << std::endl;
+//         return;
+//     }
+// 
+//     std::size_t endereco = 0;
+//     int byte;
+//     while((byte = arquivo.get()) != EOF) {
+//         memoria.setByte(endereco++, static_cast<std::uint8_t>(byte));   
+//     }
+// 
+//     cpu.r.PC = 0; //inicio do programa
+// 
+// }
 
 void Maquina::executar() {
     bool rodando = true;
