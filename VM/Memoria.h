@@ -21,7 +21,16 @@ public:
     };
     std::uint32_t read(std::size_t endereço_palavra) const;
     void write(std::size_t endereço_palavra, std::int32_t valor);
+
+    void setByte(std::size_t endereco_byte, std::uint8_t valor) {
+       if(endereco_byte >= m_bytes.size()) {
+        m_bytes[endereco_byte] = valor;
+    } } 
+
+    std:: size_t getTamanhoBytes() const{
+        return m_bytes.size();
+    }
 };
 
 
-#endif //VM_SIC_MEMORY_H
+#endif //VM_SIC_MEMORY_H a
