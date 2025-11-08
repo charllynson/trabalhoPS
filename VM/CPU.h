@@ -7,11 +7,12 @@
 
 #include <cstdint>
 enum RegID {A = 0, X = 1, L = 2, B = 3, S = 4, T = 5, F = 6, PC = 8, SW = 9};
+enum status {BIGGER = 1, EQUAL = 0, SMALLER = -1};
 
 struct Registradores {;
     std::int32_t A = 0;  // Acumulador
     std::int32_t PC = 0; // Contador de programa
-    std::int32_t SW = 0; // Palavra de status
+    status SW = EQUAL; // Palavra de status
 
     std::int32_t X = 0;  // Registrador de índice
     std::int32_t L = 0;  // Registrador de ligação

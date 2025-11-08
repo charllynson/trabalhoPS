@@ -57,14 +57,12 @@ número (0-9) fornecido, que pode ser usado para modificar o valor do registrado
 */
 std::int32_t& Maquina::getRegistradorPorNumero(std::uint8_t num) {
     switch (num) {
-        case 0: return cpu.r.A;
-        case 1: return cpu.r.X;
-        case 2: return cpu.r.L;
-        case 3: return cpu.r.B;
-        case 4: return cpu.r.S;
-        case 5: return cpu.r.T;
-        case 8: return cpu.r.PC; // contador de programa em Byte
-        case 9: return cpu.r.SW; // código condicional CC
+        case RegID::A: return cpu.r.A;
+        case RegID::X: return cpu.r.X;
+        case RegID::L: return cpu.r.L;
+        case RegID::B: return cpu.r.B;
+        case RegID::S: return cpu.r.S;
+        case RegID::T: return cpu.r.T;
         default:
             std::cerr << "Registrador inválido: " << (int)num << std::endl;
     }
@@ -110,27 +108,97 @@ void Maquina::passo() {
     if (opcode == 0x4C) { // RSUB (Formato 1)
         cpu.r.PC = cpu.r.L;
         std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
-        return; // Finaliza a execução do passo
+        return; // Finaliza a execução do passo e começar novamente no PC atualizado
     }
     
     // Formato 2 bytes
-    if (opcode == 0x90 || opcode == 0x04 || opcode == 0x98 || opcode == 0xAC) {
+    if (opcode == 0x90 || opcode == 0x04 || opcode == 0x98 || opcode == 0xAC ||
+        opcode == 0xA0 || opcode == 0x9C || opcode == 0xA4 || opcode == 0xA8 ||
+        opcode == 0x94 || opcode == 0xB8) {
         cpu.r.PC += 2; // Instruções de 2 bytes
         std::uint8_t regs = lerByte(pc_inicial + 1);
         std::uint8_t num_r1 = (regs >> 4) & 0x0F;
-        std::uint8_t num_r2 = regs & 0x0F; // r2 é o nibble da direita para ADDR, etc.
+        std::uint8_t num_r2 = regs & 0x0F;
         
         std::int32_t& r1 = getRegistradorPorNumero(num_r1);
 
         switch(opcode) {
-            case 0x04: // CLEAR r1
+            case 0x04: { // CLEAR r1
                 r1 = 0;
                 std::cout << "[EXEC] CLEAR - R" << (int)num_r1 << " = 0\n";
                 break;
-            case 0x90: { // ADDR r2, r1
-                std::int32_t& r2_ref = getRegistradorPorNumero(num_r2);
-                r1 += r2_ref; // A convenção é r2 = r2 + r1, mas o seu código soma em r1. Ajuste se necessário.
-                std::cout << "[EXEC] ADDR - R" << (int)num_r1 << " += R" << (int)num_r2 << "\n";
+            }
+            case 0x90: { // ADDR r1, r2
+                auto& r2 = getRegistradorPorNumero(num_r2);
+                r2 += r1;
+                std::cout << "[EXEC] ADDR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
+                break;
+            }
+            case 0x98: { // MULR r1, r2
+                auto& r2 = getRegistradorPorNumero(num_r2);
+                r2 *= r1;
+                std::cout << "[EXEC] MULR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
+                break;
+            }
+            case 0xAC: { // RMO r1, r2
+                auto& r2 = getRegistradorPorNumero(num_r2);
+                r2 = r1;
+                std::cout << "[EXEC] RMO - R" << (int)num_r2 << " = R" << (int)num_r1 << "\n";
+                break;
+            }
+            case 0xA0: { // COMPR r1, r2
+                auto& r2 = getRegistradorPorNumero(num_r2);
+                
+                // Registrador especial de STATUS
+                if (r1 < r2) {
+                    cpu.r.SW = SMALLER;
+                } else if (r1 == r2) {
+                    cpu.r.SW = EQUAL;
+                } else {
+                    cpu.r.SW = BIGGER;
+                }
+                std::cout << "[EXEC] COMPR - R" << (int)num_r1 << " : R" << (int)num_r2 << "\n";
+                break;
+            }
+            case 0x9C: { // DIVR r1, r2
+                auto& r2 = getRegistradorPorNumero(num_r2);
+                r2 /= r1;
+                std::cout << "[EXEC] DIVR - R" << (int)num_r2 << " /= R" << (int)num_r1 << "\n";
+                break;    
+            }
+            case 0xA4: { // SHIFTL r1, n
+                auto& n = num_r2;
+                int shift_amount = n + 1;
+                r1 <<= shift_amount;
+                std::cout << "[EXEC] SHIFTL - R" << (int)num_r1 << " <<= N" << (int)shift_amount << "\n";
+                break;
+            }
+            case 0xA8: { // SHIFTR r1, n
+                auto& n = num_r2;
+                int shift_amount = n + 1;
+                r1 >>= shift_amount;
+                std::cout << "[EXEC] SHIFTR - R" << (int)num_r1 << " >>= N" << (int)shift_amount << "\n";
+                break;
+            }
+            case 0x94: { // SUBR r1, r2
+                auto& r2 = getRegistradorPorNumero(num_r2);
+                r2 -= r1;
+                std::cout << "[EXEC] SUBR - R" << (int)num_r2 << " -= R" << (int)num_r1 << "\n";
+                break;
+            }
+            case 0xB8: { // TIXR r1
+                cpu.r.X++;
+
+                if (cpu.r.X < r1) {
+                    cpu.r.SW = SMALLER;
+                } else if (cpu.r.X == r1) {
+                    cpu.r.SW = EQUAL;
+                } else {
+                    cpu.r.SW = BIGGER;
+                }
+                std::cout << "[EXEC] TIXR - X incrementado para " << cpu.r.X 
+                          << ". Comparando com R" << (int)num_r1 
+                          << " -> SW = " << cpu.r.SW << "\n";
                 break;
             }
         }
@@ -138,16 +206,20 @@ void Maquina::passo() {
     }
 
     // Formato 3/4
+
+    // Extrair ni do primeiro Byte
     bool n = (byte1 >> 1) & 1;
     bool i = byte1 & 1;
 
+    // Extrair xbpe do segundo Byte
     std::uint8_t byte2 = lerByte(pc_inicial + 1);
-    
     bool x = (byte2 >> 7) & 1;
     bool b = (byte2 >> 6) & 1;
     bool p = (byte2 >> 5) & 1;
     bool e = (byte2 >> 4) & 1;
 
+    // disp será o último nibble do segundo Byte junto com os dois nibbles do terceiro Byte
+    // formando um inteiro de 12 bits (se for instrução de 3 Bytes)
     std::int32_t disp;
     std::uint32_t target_address = 0;
 
@@ -183,36 +255,193 @@ void Maquina::passo() {
     // Obtenção do operando
     std::uint32_t operando;
 
-    // Imediato
+    // i==1 então Imediato
     if (i) {
         operando = target_address; // O "endereço" é o próprio valor
     } else {
-        // Se for indireto, busca o endereço final na memória
+        // Se for indireto, buscar o byte "target_address" e ler a palavra a partir dele
         std::uint32_t endereco_efetivo = target_address;
+        
+        // endereço de um ponteiro
         if (n) { 
             endereco_efetivo = lerPalavra(target_address);
         }
+        // endereço do operando
         operando = lerPalavra(endereco_efetivo);
     }
 
     // Execução da instrução
     switch(opcode) {
-        case 0x00: // LDA
+        case 0x00: { // LDA m
             cpu.r.A = operando;
             std::cout << "[EXEC] LDA - A = " << cpu.r.A << "\n";
             break;
-        case 0x0C: // STA
-            memoria.write(target_address, cpu.r.A);
+        }
+        case 0x0C: { // STA m
+            escreverPalavra(target_address, cpu.r.A);
             std::cout << "[EXEC] STA - mem[" << target_address << "] = " << cpu.r.A << "\n";
             break;
-        case 0x18: // ADD
+        }
+        case 0x18: { // ADD m
             cpu.r.A += operando;
             std::cout << "[EXEC] ADD - A = " << cpu.r.A << "\n";
             break;
-        case 0x3C: // JMP
+        }
+        case 0x3C: { // J m
             cpu.r.PC = target_address;
-            std::cout << "[EXEC] JMP - PC = " << cpu.r.PC << "\n";
+            std::cout << "[EXEC] J - PC = " << cpu.r.PC << "\n";
             break;
+        }
+        case 0x40: { // AND m
+            cpu.r.A &= operando;
+            std::cout << "[EXEC] AND - A = " << cpu.r.A << " : m " << (int)operando << "\n";
+            break;
+        }
+        case 0x28: { // COMP m
+            if (cpu.r.A < operando) {
+                cpu.r.SW = SMALLER;
+            } else if (cpu.r.A == operando) {
+                cpu.r.SW = EQUAL;
+            } else {
+                cpu.r.SW = BIGGER;
+            }
+
+            std::cout << "[EXEC] COMPR - A" << (int)cpu.r.A << " : m " << (int)operando << "\n";
+            break;
+        }
+        case 0x24: { // DIV m
+            if (operando == 0) {
+                std::cerr << "[ERRO] Tentativa de divisão por zero, abortando processo";
+                return;
+            }
+            cpu.r.A /= operando;
+            std::cout << "[EXEC] DIV - A = " << cpu.r.A << "\n";
+            break;
+        }
+        case 0x30: { // JEQ m
+            if (cpu.r.SW == EQUAL) {
+                cpu.r.PC = target_address;
+            }
+            std::cout << "[EXEC] JEQ";
+            break;
+        }
+        case 0x34: { // JGT m
+            if (cpu.r.SW == BIGGER) {
+                cpu.r.PC = target_address;
+            }
+            std::cout << "[EXEC] JGT";
+            break;
+        }
+        case 0x38: { // JLT m
+            if (cpu.r.SW == SMALLER) {
+                cpu.r.PC = target_address;
+            }
+            std::cout << "[EXEC] JLT";
+            break;
+        }
+        case 0x48: { // JSUB m
+            cpu.r.L = cpu.r.PC;
+            cpu.r.PC = target_address;
+            std::cout << "[EXEC] JSUB - L = " << cpu.r.L << ", PC = " << cpu.r.PC << "\n";
+            break;
+        }
+        case 0x68: { // LDB m
+            cpu.r.B = operando;
+            std::cout << "[EXEC] LDB - B = " << cpu.r.B << "\n";
+            break;
+        }
+        case 0x50: { // LDCH m
+            auto byte_carregado = lerByte(target_address);
+            auto a_preservado = cpu.r.A & 0xFFFF00;
+            cpu.r.A = a_preservado | byte_carregado;
+            std::cout << "[EXEC] LDCH - A = " << cpu.r.A << "\n";
+            break;
+        }
+        case 0x08: { // LDL m
+            cpu.r.L = operando;
+            std::cout << "[EXEC] LDL - L = " << cpu.r.L << "\n";
+            break;
+        }
+        case 0x6C: { // LDS m
+            cpu.r.S = operando;
+            std::cout << "[EXEC] LDS - S = " << cpu.r.S << "\n";
+            break;
+        }
+        case 0x74: { // LDT m
+            cpu.r.T = operando;
+            std::cout << "[EXEC] LDT - T = " << cpu.r.T << "\n";
+            break;
+        }
+        case 0x04: { // LDX m
+            cpu.r.X = operando;
+            std::cout << "[EXEC] LDX - X = " << cpu.r.X << "\n";
+            break;
+        }
+        case 0x20: { // MUL m
+            cpu.r.A *= operando;
+            std::cout << "[EXEC] MUL - A = " << cpu.r.A << "\n";
+            break;
+        }
+        case 0x44: { // OR m
+            cpu.r.A |= operando;
+            std::cout << "[EXEC] OR - A = " << cpu.r.A << "\n";
+            break;
+        }
+        case 0x4C: { // RSUB m
+            cpu.r.PC = cpu.r.L;
+            std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
+            break;
+        }
+        case 0x78: { // STB m 
+            escreverPalavra(target_address, cpu.r.B);
+            std::cout << "[EXEC] STB - mem[" << target_address << "] = " << cpu.r.B << "\n";
+            break;
+        }
+        case 0x54: { // STCH m
+            std::uint8_t byte_para_armazenar = cpu.r.A & 0xFF;
+            memoria.setByte(target_address, byte_para_armazenar);
+            std::cout << "[EXEC] STCH - mem[" << target_address << "] = " << (int)byte_para_armazenar << "\n";
+            break;
+        }
+        case 0x14: { // STL m
+            escreverPalavra(target_address, cpu.r.L);
+            std::cout << "[EXEC] STL - mem[" << target_address << "] = " << cpu.r.L << "\n";
+            break;
+        }
+        case 0x7C: { // STS m
+            escreverPalavra(target_address, cpu.r.S);
+            std::cout << "[EXEC] STS - mem[" << target_address << "] = " << cpu.r.S << "\n";
+            break;
+        }
+        case 0x84: { // STT m
+            escreverPalavra(target_address, cpu.r.T);
+            std::cout << "[EXEC] STT - mem[" << target_address << "] = " << cpu.r.T << "\n";
+            break;  
+        }
+        case 0x10: { // STX m
+            escreverPalavra(target_address, cpu.r.X);
+            std::cout << "[EXEC] STX - mem[" << target_address << "] = " << cpu.r.X << "\n";
+            break;
+        }
+        case 0x1C: { // SUB m
+            cpu.r.A -= operando;
+            std::cout << "[EXEC] SUB - A = " << cpu.r.A << "\n";
+            break;
+        }
+        case 0x2C: { // TIX m
+            cpu.r.X++;
+            if (cpu.r.X < operando) {
+                cpu.r.SW = SMALLER;
+            } else if (cpu.r.X == operando) {
+                cpu.r.SW = EQUAL;
+            } else {
+                cpu.r.SW = BIGGER;
+            }
+            std::cout << "[EXEC] TIX - X incrementado para " << cpu.r.X 
+                      << ". Comparando com m " << (int)operando
+                      << " -> SW = " << cpu.r.SW << "\n";
+            break;
+        }
         default:
              std::cerr << "[ERRO] Opcode F3/F4 não implementado: 0x" << std::hex << (int)opcode << std::dec << std::endl;
     }
