@@ -1,17 +1,11 @@
 #include "Maquina_melhor.h"
+#include <stdexcept> 
 
 Maquina::Maquina(std::size_t tamanho_memoria) : memoria(tamanho_memoria){}
 
 /*
 =========================================================================================
 Carregar o programa na memória a partir de um arquivo binário.
-Cada byte do arquivo é lido e armazenado sequencialmente na memória da máquina.
-As instruções seguem o padrão de formato 1, 2, 3/4 conforme SIC/XE.
-Conseguimos distinguir of formatos 3/4 pela flag 'e' no quarto bit do terceiro nibble.
-
-Exemplo: LDA #0xA1C (formato 3, imediato)
-0000 0011 0000 1010 0001 1100 
-opcode ni|xbpe |disp 12bits |
 =========================================================================================
 */
 void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
@@ -29,30 +23,33 @@ void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
 
     // início do programa
     cpu.r.PC = 0;
+    m_running = false; // Garante que não esteja rodando após carregar
 }
 
 /*
 =========================================================================================
-Começar o loop de execução da máquina assim que o programa é carregado.
+Começar o loop de execução da máquina. Agora controlado pelo flag m_running.
 =========================================================================================
 */
 void Maquina::executar() {
-    bool rodando = true;
-    while(rodando){
-        passo();
-        //se PC ultrapassar o tamanho da memoria, para a execução
-        if(cpu.r.PC >= memoria.getTamanhoBytes()) {
-            std::cout <<"Fim da execução " << std::endl;
-            rodando = false; 
+    // Inicializa o flag de execução
+    m_running = true; 
+    
+    while(m_running){ // Loop controlado pelo flag
+        try {
+            passo();
+            // A condição de parada (PC fora dos limites) é verificada dentro de passo()
+        } catch (const std::exception& e) {
+            std::cerr << "Erro fatal durante a execucao: " << e.what() << std::endl;
+            m_running = false;
         }
-
     }
 }
 
 /*
 =========================================================================================
-Retornar uma referência direta para um dos registradores do CPU com base no
-número (0-9) fornecido, que pode ser usado para modificar o valor do registrador.
+Retornar uma referência direta para um dos registradores.
+CORREÇÃO: Lança uma exceção no default para evitar o warning e garantir retorno.
 =========================================================================================
 */
 std::int32_t& Maquina::getRegistradorPorNumero(std::uint8_t num) {
@@ -65,26 +62,33 @@ std::int32_t& Maquina::getRegistradorPorNumero(std::uint8_t num) {
         case RegID::T: return cpu.r.T;
         default:
             std::cerr << "Registrador inválido: " << (int)num << std::endl;
+            // Lança uma exceção (runtime_error exige #include <stdexcept>)
+            throw std::runtime_error("Tentativa de acessar registrador invalido.");
     }
 }
 
 /*
 =========================================================================================
-Iniciar o passo da execução da instrução atual apontada pelo PC.
-Isso implica em ler o opcode e inferir o formato da instrução (1, 2, 3/4).
+Iniciar o passo da execução da instrução atual.
 =========================================================================================
 */
 void Maquina::passo() {
-    // Fornece um endereço do byte na memória e retorna o byte correspondente dentro da palavra
+    // Fornece um endereço do byte na memória
     auto lerByte = [this](std::size_t endereco_byte) -> std::uint8_t {
-        std::size_t palavra_idx = endereco_byte / 3;
-        std::size_t deslocamento = endereco_byte % 3;
-        std::uint32_t valor = memoria.read(palavra_idx);
-        return (valor >> (16 - 8 * deslocamento)) & 0xFF;
+        const std::vector<std::uint8_t>& m_bytes = memoria.getMBytes();
+        if (endereco_byte < m_bytes.size()) {
+            return m_bytes[endereco_byte];
+        }
+        return 0; // Retorna 0 se fora dos limites
     };
 
     // Ler uma palavra (3 bytes) da memória a partir de um endereço de byte
     auto lerPalavra = [this, &lerByte](std::size_t endereco_byte) -> std::uint32_t {
+        if (endereco_byte + 2 >= memoria.getTamanhoBytes()) {
+            std::cerr << "ERRO: Tentativa de ler palavra fora dos limites da memória em 0x" << std::hex << endereco_byte << std::dec << std::endl;
+            return 0;
+        }
+
         std::uint8_t b1 = lerByte(endereco_byte);
         std::uint8_t b2 = lerByte(endereco_byte + 1);
         std::uint8_t b3 = lerByte(endereco_byte + 2);
@@ -99,109 +103,122 @@ void Maquina::passo() {
     };
 
     std::size_t pc_inicial = cpu.r.PC;
+    
+    // VERIFICAÇÃO DE LIMITE CRÍTICO
+    if (pc_inicial >= memoria.getTamanhoBytes()) {
+        std::cerr << "[FIM] PC fora dos limites da memória (PC = 0x" << std::hex << pc_inicial << std::dec << ")\n";
+        m_running = false; // Desliga o flag se PC for inválido
+        return;
+    }
+
     std::uint8_t byte1 = lerByte(pc_inicial);
 
-    // Resgatar os 6 bits mais significativos
     std::uint8_t opcode = byte1 & 0xFC;
 
     // Formato 1 byte
     if (opcode == 0x4C) { // RSUB (Formato 1)
         cpu.r.PC = cpu.r.L;
         std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
-        return; // Finaliza a execução do passo e começar novamente no PC atualizado
+        m_running = false; // **CONDIÇÃO DE PARADA**
+        return; 
     }
     
     // Formato 2 bytes
     if (opcode == 0x90 || opcode == 0x04 || opcode == 0x98 || opcode == 0xAC ||
         opcode == 0xA0 || opcode == 0x9C || opcode == 0xA4 || opcode == 0xA8 ||
         opcode == 0x94 || opcode == 0xB8) {
-        cpu.r.PC += 2; // Instruções de 2 bytes
+        cpu.r.PC += 2; 
         std::uint8_t regs = lerByte(pc_inicial + 1);
         std::uint8_t num_r1 = (regs >> 4) & 0x0F;
         std::uint8_t num_r2 = regs & 0x0F;
         
-        std::int32_t& r1 = getRegistradorPorNumero(num_r1);
-
-        switch(opcode) {
-            case 0x04: { // CLEAR r1
-                r1 = 0;
-                std::cout << "[EXEC] CLEAR - R" << (int)num_r1 << " = 0\n";
-                break;
-            }
-            case 0x90: { // ADDR r1, r2
-                auto& r2 = getRegistradorPorNumero(num_r2);
-                r2 += r1;
-                std::cout << "[EXEC] ADDR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
-                break;
-            }
-            case 0x98: { // MULR r1, r2
-                auto& r2 = getRegistradorPorNumero(num_r2);
-                r2 *= r1;
-                std::cout << "[EXEC] MULR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
-                break;
-            }
-            case 0xAC: { // RMO r1, r2
-                auto& r2 = getRegistradorPorNumero(num_r2);
-                r2 = r1;
-                std::cout << "[EXEC] RMO - R" << (int)num_r2 << " = R" << (int)num_r1 << "\n";
-                break;
-            }
-            case 0xA0: { // COMPR r1, r2
-                auto& r2 = getRegistradorPorNumero(num_r2);
-                
-                // Registrador especial de STATUS
-                if (r1 < r2) {
-                    cpu.r.SW = SMALLER;
-                } else if (r1 == r2) {
-                    cpu.r.SW = EQUAL;
-                } else {
-                    cpu.r.SW = BIGGER;
+        try {
+            std::int32_t& r1 = getRegistradorPorNumero(num_r1);
+            
+            switch(opcode) {
+                case 0x04: { // CLEAR r1
+                    r1 = 0;
+                    std::cout << "[EXEC] CLEAR - R" << (int)num_r1 << " = 0\n";
+                    break;
                 }
-                std::cout << "[EXEC] COMPR - R" << (int)num_r1 << " : R" << (int)num_r2 << "\n";
-                break;
-            }
-            case 0x9C: { // DIVR r1, r2
-                auto& r2 = getRegistradorPorNumero(num_r2);
-                r2 /= r1;
-                std::cout << "[EXEC] DIVR - R" << (int)num_r2 << " /= R" << (int)num_r1 << "\n";
-                break;    
-            }
-            case 0xA4: { // SHIFTL r1, n
-                auto& n = num_r2;
-                int shift_amount = n + 1;
-                r1 <<= shift_amount;
-                std::cout << "[EXEC] SHIFTL - R" << (int)num_r1 << " <<= N" << (int)shift_amount << "\n";
-                break;
-            }
-            case 0xA8: { // SHIFTR r1, n
-                auto& n = num_r2;
-                int shift_amount = n + 1;
-                r1 >>= shift_amount;
-                std::cout << "[EXEC] SHIFTR - R" << (int)num_r1 << " >>= N" << (int)shift_amount << "\n";
-                break;
-            }
-            case 0x94: { // SUBR r1, r2
-                auto& r2 = getRegistradorPorNumero(num_r2);
-                r2 -= r1;
-                std::cout << "[EXEC] SUBR - R" << (int)num_r2 << " -= R" << (int)num_r1 << "\n";
-                break;
-            }
-            case 0xB8: { // TIXR r1
-                cpu.r.X++;
-
-                if (cpu.r.X < r1) {
-                    cpu.r.SW = SMALLER;
-                } else if (cpu.r.X == r1) {
-                    cpu.r.SW = EQUAL;
-                } else {
-                    cpu.r.SW = BIGGER;
+                case 0x90: { // ADDR r1, r2
+                    std::int32_t& r2 = getRegistradorPorNumero(num_r2);
+                    r2 += r1;
+                    std::cout << "[EXEC] ADDR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
+                    break;
                 }
-                std::cout << "[EXEC] TIXR - X incrementado para " << cpu.r.X 
-                          << ". Comparando com R" << (int)num_r1 
-                          << " -> SW = " << cpu.r.SW << "\n";
-                break;
+                case 0x98: { // MULR r1, r2
+                    std::int32_t& r2 = getRegistradorPorNumero(num_r2);
+                    r2 *= r1;
+                    std::cout << "[EXEC] MULR - R" << (int)num_r2 << " *= R" << (int)num_r1 << "\n";
+                    break;
+                }
+                case 0xAC: { // RMO r1, r2
+                    std::int32_t& r2 = getRegistradorPorNumero(num_r2);
+                    r2 = r1;
+                    std::cout << "[EXEC] RMO - R" << (int)num_r2 << " = R" << (int)num_r1 << "\n";
+                    break;
+                }
+                case 0xA0: { // COMPR r1, r2
+                    std::int32_t& r2 = getRegistradorPorNumero(num_r2);
+                    
+                    if (r1 < r2) {
+                        cpu.r.SW = SMALLER;
+                    } else if (r1 == r2) {
+                        cpu.r.SW = EQUAL;
+                    } else {
+                        cpu.r.SW = BIGGER;
+                    }
+                    std::cout << "[EXEC] COMPR - R" << (int)num_r1 << " : R" << (int)num_r2 << "\n";
+                    break;
+                }
+                case 0x9C: { // DIVR r1, r2
+                    std::int32_t& r2 = getRegistradorPorNumero(num_r2);
+                    if (r1 == 0) throw std::runtime_error("Divisao por zero em DIVR.");
+                    r2 /= r1;
+                    std::cout << "[EXEC] DIVR - R" << (int)num_r2 << " /= R" << (int)num_r1 << "\n";
+                    break;    
+                }
+                case 0xA4: { // SHIFTL r1, n
+                    auto& n = num_r2;
+                    int shift_amount = n + 1;
+                    r1 <<= shift_amount;
+                    std::cout << "[EXEC] SHIFTL - R" << (int)num_r1 << " <<= N" << (int)shift_amount << "\n";
+                    break;
+                }
+                case 0xA8: { // SHIFTR r1, n
+                    auto& n = num_r2;
+                    int shift_amount = n + 1;
+                    r1 >>= shift_amount;
+                    std::cout << "[EXEC] SHIFTR - R" << (int)num_r1 << " >>= N" << (int)shift_amount << "\n";
+                    break;
+                }
+                case 0x94: { // SUBR r1, r2
+                    std::int32_t& r2 = getRegistradorPorNumero(num_r2);
+                    r2 -= r1;
+                    std::cout << "[EXEC] SUBR - R" << (int)num_r2 << " -= R" << (int)num_r1 << "\n";
+                    break;
+                }
+                case 0xB8: { // TIXR r1
+                    cpu.r.X++;
+
+                    if (cpu.r.X < r1) {
+                        cpu.r.SW = SMALLER;
+                    } else if (cpu.r.X == r1) {
+                        cpu.r.SW = EQUAL;
+                    } else {
+                        cpu.r.SW = BIGGER;
+                    }
+                    std::cout << "[EXEC] TIXR - X incrementado para " << cpu.r.X 
+                            << ". Comparando com R" << (int)num_r1 
+                            << " -> SW = " << cpu.r.SW << "\n";
+                    break;
+                }
             }
+        } catch (const std::exception& e) {
+            std::cerr << "ERRO de registrador em Formato 2: " << e.what() << std::endl;
         }
+
         return;
     }
 
@@ -218,18 +235,24 @@ void Maquina::passo() {
     bool p = (byte2 >> 5) & 1;
     bool e = (byte2 >> 4) & 1;
 
-    // disp será o último nibble do segundo Byte junto com os dois nibbles do terceiro Byte
-    // formando um inteiro de 12 bits (se for instrução de 3 Bytes)
     std::int32_t disp;
     std::uint32_t target_address = 0;
 
     if (e) { // Formato 4
+        if (pc_inicial + 3 >= memoria.getTamanhoBytes()) {
+            std::cerr << "ERRO: Leitura do Formato 4 fora dos limites.\n";
+            return;
+        }
         cpu.r.PC += 4;
         std::uint8_t byte3 = lerByte(pc_inicial + 2);
         std::uint8_t byte4 = lerByte(pc_inicial + 3);
         disp = ((byte2 & 0x0F) << 16) | (byte3 << 8) | byte4;
         target_address = disp;
     } else { // Formato 3
+        if (pc_inicial + 2 >= memoria.getTamanhoBytes()) {
+            std::cerr << "ERRO: Leitura do Formato 3 fora dos limites.\n";
+            return;
+        }
         cpu.r.PC += 3;
         std::uint8_t byte3 = lerByte(pc_inicial + 2);
         disp = ((byte2 & 0x0F) << 8) | byte3;
@@ -257,9 +280,8 @@ void Maquina::passo() {
 
     // i==1 então Imediato
     if (i) {
-        operando = target_address; // O "endereço" é o próprio valor
+        operando = target_address; 
     } else {
-        // Se for indireto, buscar o byte "target_address" e ler a palavra a partir dele
         std::uint32_t endereco_efetivo = target_address;
         
         // endereço de um ponteiro
@@ -351,6 +373,10 @@ void Maquina::passo() {
             break;
         }
         case 0x50: { // LDCH m
+            if (target_address >= memoria.getTamanhoBytes()) {
+                std::cerr << "ERRO: LDCH fora dos limites.\n";
+                return;
+            }
             auto byte_carregado = lerByte(target_address);
             auto a_preservado = cpu.r.A & 0xFFFF00;
             cpu.r.A = a_preservado | byte_carregado;
@@ -390,6 +416,7 @@ void Maquina::passo() {
         case 0x4C: { // RSUB m
             cpu.r.PC = cpu.r.L;
             std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
+            m_running = false; // **CONDIÇÃO DE PARADA**
             break;
         }
         case 0x78: { // STB m 
@@ -398,6 +425,10 @@ void Maquina::passo() {
             break;
         }
         case 0x54: { // STCH m
+            if (target_address >= memoria.getTamanhoBytes()) {
+                std::cerr << "ERRO: STCH fora dos limites.\n";
+                return;
+            }
             std::uint8_t byte_para_armazenar = cpu.r.A & 0xFF;
             memoria.setByte(target_address, byte_para_armazenar);
             std::cout << "[EXEC] STCH - mem[" << target_address << "] = " << (int)byte_para_armazenar << "\n";
@@ -444,5 +475,7 @@ void Maquina::passo() {
         }
         default:
              std::cerr << "[ERRO] Opcode F3/F4 não implementado: 0x" << std::hex << (int)opcode << std::dec << std::endl;
+             // Lança exceção para tratamento de erro não implementado
+             throw std::runtime_error("Opcode F3/F4 nao implementado ou invalido.");
     }
 }
