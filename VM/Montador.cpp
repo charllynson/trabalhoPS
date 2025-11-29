@@ -282,8 +282,90 @@ std::vector<uint8_t> Montador::montar(const std::string& caminhoArquivoFonte) {
             locctr += n;
             continue;
         }
+
+        // Instruções formato 2
+        if (instruçoesFormato2.count(instrucao)) {
+            uint8_t opcode_val = opcode[instrucao];
+            codigoObjeto.push_back(opcode_val);
+            
+            // Formato: INSTR R1,R2
+            std::string r1, r2;
+            size_t commaPos = operando.find(',');
+            if (commaPos != std::string::npos) {
+                r1 = operando.substr(0, commaPos);
+                r2 = operando.substr(commaPos + 1);
+            } else {
+                r1 = operando;
+                r2 = "";
+            }
+            
+            uint8_t r1_num = regToNum(r1);
+            uint8_t r2_num = regToNum(r2);
+            codigoObjeto.push_back((r1_num << 4) | r2_num);
+            locctr += 2;
+            continue;
+        }
+
+        // Instruções formato 3/4
+        if (instruçoesFormato34.count(instrucao)) {
+            bool isFormat4 = false;
+            std::string instr = instrucao;
+            
+            // Detectar formato 4 (começa com +)
+            if (!instr.empty() && instr[0] == '+') {
+                isFormat4 = true;
+                instr = instr.substr(1); // Remove o +
+            }
+            
+            if (opcode.find(instr) == opcode.end()) {
+                std::cerr << "Erro linha " << lineNo << ": instrução '" << instr << "' desconhecida\n";
+                continue;
+            }
+            
+            uint8_t opcode_val = opcode[instr];
+            int targetAddr = 0;
+            
+            // Resolver endereço do operando
+            if (!operando.empty()) {
+                if (tabelaSimbolos.count(operando)) {
+                    targetAddr = tabelaSimbolos[operando];
+                } else {
+                    targetAddr = parseNumber(operando);
+                }
+            }
+            
+            if (isFormat4) {
+                // Formato 4: 4 bytes (e=1, x=0, b=0, p=0)
+                codigoObjeto.push_back(opcode_val);
+                codigoObjeto.push_back((targetAddr >> 16) & 0xFF);
+                codigoObjeto.push_back((targetAddr >> 8) & 0xFF);
+                codigoObjeto.push_back(targetAddr & 0xFF);
+                locctr += 4;
+            } else {
+                // Formato 3: 3 bytes, usar endereçamento PC-relativo ou base
+                int displacement = targetAddr - (locctr + 3);
+                bool usePCRel = (displacement >= -2048 && displacement <= 2047);
+                
+                uint16_t addr = 0;
+                if (usePCRel) {
+                    addr = (1 << 13) | (displacement & 0x1FFF); // p=1
+                } else if (baseAddress >= 0) {
+                    displacement = targetAddr - baseAddress;
+                    if (displacement >= 0 && displacement <= 4095) {
+                        addr = (1 << 12) | (displacement & 0xFFF); // b=1
+                    }
+                }
+                
+                codigoObjeto.push_back(opcode_val);
+                codigoObjeto.push_back((addr >> 8) & 0xFF);
+                codigoObjeto.push_back(addr & 0xFF);
+                locctr += 3;
+            }
+            continue;
+        }
     }
 
+    return codigoObjeto;
 }
 
 
