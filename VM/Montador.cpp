@@ -5,10 +5,6 @@
 std::vector<uint8_t> Montador::montar(const std::string& caminhoArquivoFonte) {
     std::ifstream arquivoFonte(caminhoArquivoFonte);
     std::vector<uint8_t> codigoObjeto;
-    //as instruções de formato 1 NÃO eram para ser implementadas??
-    std::unordered_set<std::string> instruçoesFormato1 = {
-        "FIX", "FLOAT", "HIO", "NORM", "SIO", "TIO"
-    };
     std::unordered_set<std::string> instruçoesFormato2 = {
         "ADDR", "CLEAR", "COMPR", "DIVR", "MULR", "RMO",
         "SHIFTL", "SHIFTR", "SUBR", "TIXR"
