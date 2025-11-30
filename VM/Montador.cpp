@@ -67,9 +67,7 @@ std::vector<uint8_t> Montador::montar(const std::string& caminhoArquivoFonte) {
         std::cout << "---------------------------\n";
 
         // Lógica para incrementar o contador de endereço (LC)
-        if (instruçoesFormato1.count(instrucao)) {
-            contadorEndereco += 1;
-        } else if (instruçoesFormato2.count(instrucao)) {
+        if (instruçoesFormato2.count(instrucao)) {
             contadorEndereco += 2;
         } else if (instruçoesFormato34.count(instrucao)) {
             // Verifica se é formato 4 (com '+')
