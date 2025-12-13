@@ -4,8 +4,8 @@
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
     
-    InterfaceGrafica w;
-    w.show();
+    InterfaceGrafica janelaPrincipal;
+    janelaPrincipal.show();
 
     return a.exec();
 }

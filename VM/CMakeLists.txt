@@ -23,6 +23,8 @@ set(SOURCE_FILES
     Maquina_melhor.h
     InterfaceGrafica.cpp
     InterfaceGrafica.h
+        Montador.cpp
+        Montador.h
 )
 
 add_executable(VM_SIC ${SOURCE_FILES})
