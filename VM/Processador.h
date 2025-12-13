@@ -1,5 +1,6 @@
-#ifndef MACRO_PROCESSOR_H
-#define MACRO_PROCESSOR_H
+
+#ifndef PROCESSADOR_H
+#define PROCESSADOR_H
 
 #include <iostream>
 #include <fstream>
@@ -29,7 +30,7 @@ private:
     map<string, MacroDefinition> macroTable;
     vector<string> inputLines;
     vector<string> outputLines;
-    int lineIndex;
+    size_t lineIndex;  // Mudado de int para size_t
     bool verbose;
     int errorCount;
     
@@ -43,7 +44,7 @@ private:
     
     // Processamento
     void processMacroDefinition();
-    vector<string> expandMacro(const string& callLine, int lineNum);
+    vector<string> expandMacro(const string& callLine, size_t lineNum);
     
     // Log e erro
     void log(const string& message);
@@ -133,7 +134,7 @@ bool Processador::isMacroCall(const string& line) {
 }
 
 void Processador::processMacroDefinition() {
-    int startLine = lineIndex;
+    size_t startLine = lineIndex;  // Mudado de int para size_t
     string definitionLine = trim(inputLines[lineIndex]);
     definitionLine = removeInlineComment(definitionLine);
     
@@ -143,7 +144,6 @@ void Processador::processMacroDefinition() {
     // Extrai parâmetros
     vector<string> params;
     if (tokens.size() > 2) {
-        // Junta todos os tokens após MACRO e separa por vírgula
         string paramStr;
         for (size_t i = 2; i < tokens.size(); i++) {
             paramStr += tokens[i] + " ";
@@ -152,7 +152,7 @@ void Processador::processMacroDefinition() {
         vector<string> paramList = split(paramStr, ',');
         for (const string& param : paramList) {
             string p = trim(param);
-            if (p[0] == '&') {
+            if (!p.empty() && p[0] == '&') {
                 p = p.substr(1);
             }
             params.push_back(toUpper(p));
@@ -200,7 +200,8 @@ void Processador::processMacroDefinition() {
     }
     
     if (nestingLevel > 0) {
-        error("Macro '" + macroName + "' nao foi fechada (falta MEND)", startLine + 1);
+        error("Macro '" + macroName + "' nao foi fechada (falta MEND)", 
+              static_cast<int>(startLine + 1));
         return;
     }
     
@@ -215,7 +216,7 @@ void Processador::processMacroDefinition() {
         to_string(macroBody.size()) + " linhas");
 }
 
-vector<string> Processador::expandMacro(const string& callLine, int lineNum) {
+vector<string> Processador::expandMacro(const string& callLine, size_t lineNum) {
     string cleanCall = callLine;
     string label = "";
     
@@ -241,7 +242,7 @@ vector<string> Processador::expandMacro(const string& callLine, int lineNum) {
     
     // Recupera a macro
     if (macroTable.find(macroName) == macroTable.end()) {
-        error("Macro '" + macroName + "' nao definida", lineNum);
+        error("Macro '" + macroName + "' nao definida", static_cast<int>(lineNum));
         return {callLine};
     }
     
@@ -254,7 +255,7 @@ vector<string> Processador::expandMacro(const string& callLine, int lineNum) {
     if (args.size() < macroDef.params.size()) {
         error("Macro '" + macroName + "' espera " + 
               to_string(macroDef.params.size()) + " argumentos, mas recebeu " + 
-              to_string(args.size()), lineNum);
+              to_string(args.size()), static_cast<int>(lineNum));
     }
     
     // Cria mapa de substituições
@@ -279,9 +280,7 @@ vector<string> Processador::expandMacro(const string& callLine, int lineNum) {
             string param = "&" + sub.first;
             size_t pos = 0;
             
-            // Substitui todas as ocorrências (case-insensitive)
             while ((pos = toUpper(expandedLine).find(toUpper(param), pos)) != string::npos) {
-                // Verifica se é uma palavra completa
                 bool isWordBoundary = true;
                 if (pos + param.length() < expandedLine.length()) {
                     char nextChar = expandedLine[pos + param.length()];
@@ -320,7 +319,6 @@ vector<string> Processador::expandMacro(const string& callLine, int lineNum) {
             vector<string> callTokens = split(cleanExpanded, ' ');
             if (!callTokens.empty() && 
                 macroTable.find(toUpper(callTokens[0])) != macroTable.end()) {
-                // Chamada aninhada - expande recursivamente
                 log("Chamada aninhada detectada: " + cleanExpanded);
                 vector<string> nestedExpansion = expandMacro(cleanExpanded, lineNum);
                 expanded.insert(expanded.end(), nestedExpansion.begin(), nestedExpansion.end());
@@ -391,7 +389,6 @@ bool Processador::processFile(const string& inputFile, const string& outputFile)
             lineIndex++;
         }
         else {
-            // Linha normal
             outputLines.push_back(currentLine);
             lineIndex++;
         }
@@ -450,4 +447,4 @@ void Processador::printMacroTable() {
     }
 }
 
-#endif // MACRO_PROCESSOR_H
+#endif // PROCESSADOR_H

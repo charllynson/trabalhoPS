@@ -8,15 +8,15 @@ void printUsage() {
     cout << string(60, '=') << endl;
     cout << "PROCESSADOR DE MACROS - Uma Passagem" << endl;
     cout << string(60, '=') << endl;
-    cout << "\nUso: ./macro_processor <arquivo_entrada.asm> [opcoes]" << endl;
+    cout << "\nUso: ./processador <arquivo_entrada.asm> [opcoes]" << endl;
     cout << "\nOpcoes:" << endl;
     cout << "  -v, --verbose    Modo verbose (debug)" << endl;
-    cout << "  -o <arquivo>     Nome do arquivo de saida (padrao: MASMAPRG.ASM)" << endl;
+    cout << "  -o <arquivo>     Nome do arquivo de saida (padrao: MASMAPRG.ASM)" << endl;   
     cout << "  -t, --table      Imprime tabela de macros ao final" << endl;
     cout << "\nExemplos:" << endl;
-    cout << "  ./macro_processor programa.asm" << endl;
-    cout << "  ./macro_processor programa.asm -v" << endl;
-    cout << "  ./macro_processor programa.asm -o saida.asm -t" << endl;
+    cout << "  ./processador programa.asm" << endl;
+    cout << "  ./processador programa.asm -v" << endl;
+    cout << "  ./processador programa.asm -o saida.asm -t" << endl;
 }
 
 int main(int argc, char* argv[]) {
