@@ -1,5 +1,0 @@
-/home/gabriel/Documents/trabalhoPS-master/VM/build/CMakeFiles/VM_SIC.dir
-/home/gabriel/Documents/trabalhoPS-master/VM/build/CMakeFiles/edit_cache.dir
-/home/gabriel/Documents/trabalhoPS-master/VM/build/CMakeFiles/rebuild_cache.dir
-/home/gabriel/Documents/trabalhoPS-master/VM/build/CMakeFiles/VM_SIC_autogen_timestamp_deps.dir
-/home/gabriel/Documents/trabalhoPS-master/VM/build/CMakeFiles/VM_SIC_autogen.dir
