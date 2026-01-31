@@ -1,0 +1,17 @@
+COPY    START   0                                             end 0
+FIRST   STL     RETADR      . Formato 3 (PC-relative)         end 0
+        LDB     #LENGTH     . Formato 3 (Imediato)            end 3
+        BASE    LENGTH      . Diretiva para o montador        end 6
+CLOOP   +JSUB   RDREC       . Formato 4 (Endereço de 20 bits) end 6
+        LDA     @THREE      . Formato 3 (Indireto)            end 10
+        COMP    #0          . Formato 3 (Imediato)            end 13
+        JEQ     ENDFIL                                        end 16
+        ADDR    S,T         . Formato 2 (Registradores)       end 19
+        STA     BUFFER,X    . Formato 3 (Indexado)            end 21
+        J       CLOOP                                         end 24
+ENDFIL  RSUB                . Formato 3 (Sem operando)        end 27
+RETADR  RESW    1                                             end 30
+LENGTH  RESW    1                                             end 33
+THREE   WORD    3                                             end 36
+BUFFER  RESB    4096                                          end 39
+        END     FIRST                                         end 4135

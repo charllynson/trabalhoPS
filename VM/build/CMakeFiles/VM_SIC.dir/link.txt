@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/VM_SIC.dir/main.cpp.o CMakeFiles/VM_SIC.dir/Memoria.cpp.o CMakeFiles/VM_SIC.dir/CPU.cpp.o CMakeFiles/VM_SIC.dir/MontadorSemVibecode.cpp.o -o VM_SIC 

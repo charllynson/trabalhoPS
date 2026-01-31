@@ -1,10 +1,8 @@
-#include <QApplication>
-#include <QPushButton>
+#include "MontadorSemVibecode.h"
 
 int main(int argc, char *argv[]) {
-    QApplication a(argc, argv);
-    QPushButton button("Hello world!", nullptr);
-    button.resize(200, 100);
-    button.show();
-    return QApplication::exec();
+
+  MontadorSemVibecode stuff = MontadorSemVibecode();
+
+  stuff.montar("../../data/programa1.txt", "../../data/programa1_result.txt");
 }
