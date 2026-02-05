@@ -1,5 +1,6 @@
 #include "MontadorSemVibecode.h"
 
+#define PROGRAMSTARTADDRESS 0x000000
 
 MontadorSemVibecode::MontadorSemVibecode() {}
 
@@ -114,10 +115,89 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
   for (const auto& [key, value] : symbol_table) {
     std::cout << key << " -> " << value << "\n";
   }
+
+  std::cout << "Contador de endereço (LOC) final: " << address_count << "\n";
   /*
-  |SEGUNDO PASSO
+  |SEGUNDO PASSO: montar código objeto com os opcodes, nixbpe, desl. ou regs. de acordo com o formato
+    Definir header no .txt output com LOC final - LOC inicial e nome do programa
+    Definir Buffer de registros T, colocando o LOC da próxima instrução juntamente ao tamanho do Buffer
+
+    Para cada T: Iterar sobre cada linha do source
+
+      Inicializar Buffer uint32_t que não ultrapasse 30 bytes de código objeto
+      Verificar formato de instrução
+      Setar a variável binária objeto com o respectivo tamanho
+      Gerar os bits do opcode e colocar na variável
+      Setar flags n e i de acordo com as dicas @ ou #
+      Setar a flag x de acordo com o sufixo do operando (REVISAR COMO FICA O FORMATO PORQUE OPERANDO X É REAL)
+      Setar flag e se tiver um + na instrução
+      
+      Tentar calcular Destino (symbtable) - PC+3, se couber entre -2048 e 2047 usa p=1 e b=0
+      Senão, tente Destino (symbtable) - Base, usa b=1 e p=0
+      Se nada der certo, gerar um erro fatal
+
+
+      *****
+      Se o tamanho atual do buffer estiver no limite de 69 bytes de código objeto, encerrar buffer e escrever linha no txt
+      Se encontrarmos uma diretiva do tipo RESB e RESW, encerrar o T atual e começar outro no endereço logo após a lacuna 
+      *****
 
   */
+
+  file.clear();
+  file.seekg(0, std::ios::beg);
+  std::ofstream outfile(caminhoArquivoDestino);
+
+  // H: 1 bit para o registro H, 6 bits para o começo, 6 bits para o tamanho (address_count - começo)
+  // T: 1 bit para o registro T, 6 bits para o LOC, 2 bits para tamanho e 30 bits para object code
+  std::string buffer;
+  std::string rotulo;
+  std::string instr;
+  std::uint64_t desl;
+  std::uint32_t r1,r2;
+
+  std::uint64_t currentObjectCode = 0b000000000000;
+
+  // Parser do registro Header
+  std::getline(file, line);
+  std::istringstream ss(line);
+  std::string programName;
+  std::string directive;
+  std::uint64_t programStartAddress;
+  ss >> programName >> directive >> programStartAddress;
+  std::uint64_t programLength = address_count - programStartAddress;
+
+  outfile << "H"
+          << std::left << std::setw(6) << std::setfill(' ') << programName
+          << std::uppercase << std::hex
+          << std::right << std::setw(6) << std::setfill('0') << programStartAddress
+          << std::right << std::setw(6) << std::setfill('0') << programLength
+          << '\n';
+
+
+  // Parser do registro T
+  // while (std::getline(file, line)) {
+  //   std::istringstream ss(line);
+
+  //   if (line[0] != ' ' && line[0] != '\t') {
+  //     ss >> rotulo >> instr;
+  //   } else {
+  //     ss >> instr;
+  //   }
+
+  //   // Parser para instruções de formato 2 (opcode 8bits | reg1 4bits | reg2 4bits)
+  //   if (instruçoesFormato2.count(instr)) {
+  //     ss >> r1 >> r2;
+
+
+  //   }
+
+
+
+    
+
+  // }
+
 
   return false;
 }

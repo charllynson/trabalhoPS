@@ -10,6 +10,9 @@
 #include <unordered_set>
 #include <ranges>
 #include <algorithm>
+#include <memory>
+#include <iomanip>
+#include <cstdint>
 
 
 class MontadorSemVibecode {
