@@ -1,0 +1,26 @@
+[
+{
+  "directory": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build",
+  "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/main.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/main.cpp",
+  "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/main.cpp",
+  "output": "CMakeFiles/VM_SIC.dir/VM/main.cpp.o"
+},
+{
+  "directory": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build",
+  "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/Memoria.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Memoria.cpp",
+  "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Memoria.cpp",
+  "output": "CMakeFiles/VM_SIC.dir/VM/Memoria.cpp.o"
+},
+{
+  "directory": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build",
+  "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/CPU.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/CPU.cpp",
+  "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/CPU.cpp",
+  "output": "CMakeFiles/VM_SIC.dir/VM/CPU.cpp.o"
+},
+{
+  "directory": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build",
+  "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/MontadorSemVibecode.cpp",
+  "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/MontadorSemVibecode.cpp",
+  "output": "CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o"
+}
+]

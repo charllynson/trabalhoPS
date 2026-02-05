@@ -1,0 +1,3 @@
+/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build/CMakeFiles/VM_SIC.dir
+/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build/CMakeFiles/edit_cache.dir
+/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build/CMakeFiles/rebuild_cache.dir

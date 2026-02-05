@@ -1,6 +1,5 @@
 #include "MontadorSemVibecode.h"
 
-#define PROGRAMSTARTADDRESS 0x000000
 
 MontadorSemVibecode::MontadorSemVibecode() {}
 
@@ -154,7 +153,8 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
   std::string rotulo;
   std::string instr;
   std::uint64_t desl;
-  std::uint32_t r1,r2;
+  std::uint32_t baseAddress;
+  std::string r1,r2;
 
   std::uint64_t currentObjectCode = 0b000000000000;
 
@@ -174,29 +174,123 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
           << std::right << std::setw(6) << std::setfill('0') << programLength
           << '\n';
 
+  address_count = 0;
 
   // Parser do registro T
-  // while (std::getline(file, line)) {
-  //   std::istringstream ss(line);
+  // Para cada registro novo, colocar T + address_count + row size + obj codes stackados
+  buffer += "T";
+  buffer += parseToHexWithPad(address_count, 6);
 
-  //   if (line[0] != ' ' && line[0] != '\t') {
-  //     ss >> rotulo >> instr;
-  //   } else {
-  //     ss >> instr;
-  //   }
+  int m = 0;
+  while (std::getline(file, line)) {
+    std::istringstream ss(line);
 
-  //   // Parser para instruções de formato 2 (opcode 8bits | reg1 4bits | reg2 4bits)
-  //   if (instruçoesFormato2.count(instr)) {
-  //     ss >> r1 >> r2;
+    if (buffer.length() == 69) {
+      outfile << buffer.substr(7).size() << buffer;
+      buffer.clear();
+      buffer += "T";
+      buffer += parseToHexWithPad(address_count, 6);
+    }
 
+    // Ignorar rótulo SEMPRE
+    if (line[0] != ' ' && line[0] != '\t') {
+      ss >> rotulo >> instr;
+    } else {
+      ss >> instr;
+    }
 
-  //   }
+    // Parser para instruções de formato 2 (opcode 8bits | reg1 4bits | reg2 4bits)
+    if (instruçoesFormato2.count(instr)) {
+      ss >> r1 >> r2;
 
+      // Posso usar packing de bits em vez disso
+      auto instrOpcode = parseToHexWithPad(instruçoesFormato2[instr], 2);
+      auto reg1 = parseToHexWithPad(registers[r1], 1);
+      auto reg2 = parseToHexWithPad(registers[r2], 1);
 
+      buffer += instrOpcode, reg1, reg2;
 
-    
+      address_count += 2;
+    } 
 
-  // }
+    // Parser para instruções de formato 3 ou 4
+    else if (instruçoesFormato34.count(instr)) {
+      address_count += 3;
+
+      bool n,i,x,b,p,e;
+      e = false;
+
+      std::string label;
+      ss >> label;
+      std::int16_t resultingDispl;
+
+      if (label[0] == '@') {
+        n = 1;
+        i = 0;
+        label = label.substr(1);
+      }
+      if (label[0] == '#') {
+        n = 0;
+        i = 1;
+        label = label.substr(1);
+      }  else {
+        n = 1;
+        i = 1;
+      }
+      size_t indexing = label.find_first_of(',');
+      if (indexing != std::string::npos) {
+        label = label.substr(0, indexing+1);
+        x = 1;
+      } else {
+        x = 0;
+      }
+
+      if (symbol_table[label]) {
+        std::int32_t displ = static_cast<int32_t>(symbol_table[label]) - static_cast<int32_t>(address_count);
+
+        if (displ >= -2048 && displ <= 2047) {
+          // 12 bits inferiores
+          resultingDispl = displ & 0xFFF;
+          p = true;
+          b = false;
+        } else {
+          std::int32_t dispBase = static_cast<int32_t>(symbol_table[label]) - static_cast<int32_t>(baseAddress);
+          if (dispBase >= 0 && dispBase <= 4095) {
+            b = true;
+            p = false;
+            resultingDispl = dispBase & 0xFFF;
+          } else {
+            std::cerr << "Endereço fora dos limites.\n";
+            return 1;
+          }
+        }
+      } else {
+        // std::cout << "label value after before failing to parse it to integer: " << resultingDispl << "\n";
+        resultingDispl = std::stoi(label);
+      }
+      
+      std::uint8_t opcode = instruçoesFormato34[instr];
+
+      auto object = pack_fmt3(opcode >> 2, n,i,x,b,p,e, resultingDispl);
+      buffer += parseToHexWithPad(object, 6);
+
+    } 
+
+    else if (instruçoesFormato34.count(instr.substr(1))) {
+      bool n,i,x,b,p,e;
+      e = true;
+      b = 0;
+      p = 0;
+    } 
+
+    // Parser para diretivas
+    // else if (directives.count(instr)) {
+    //   if () {
+    //   } else if (instr == "END") {
+    //     break;
+    //   }
+    // }
+  }
 
 
   return false;

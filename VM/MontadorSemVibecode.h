@@ -23,6 +23,18 @@ public:
     bool montar(const std::string& caminhoArquivoFonte, const std::string& caminhoArquivoDestino);
 
 private:
+  std::unordered_map<std::string, std::uint32_t> registers = {
+    {"A", 0x0},
+    {"X", 0x1},
+    {"L", 0x2},
+    {"B", 0x3},
+    {"S", 0x4},
+    {"T", 0x5},
+    {"F", 0x6},
+    {"PC", 8},
+    {"SW", 9}
+  };
+
   std::unordered_set<std::string> directives = {
     "START",
     "END",
@@ -84,5 +96,56 @@ private:
     catch (const std::out_of_range&) {
       throw std::runtime_error("Opcode hexadecimal fora do intervalo de int: " + opcode);
     }
+  }
+
+  std::string parseToHexWithPad(const std::uint64_t value, const int width) {
+    std::ostringstream oss;
+    oss << std::uppercase << std::hex 
+        << std::right << std::setw(width) << std::setfill('0')
+        << value;
+
+    return oss.str();
+  }
+
+  uint32_t pack_fmt3(uint8_t opcode,
+                   bool n, bool i, bool x, bool b, bool p, bool e,
+                   int16_t disp)
+  {
+    uint32_t op = (opcode & 0x3F);
+
+    uint32_t flags =
+        (n << 5) |
+        (i << 4) |
+        (x << 3) |
+        (b << 2) |
+        (p << 1) |
+        (e << 0);
+
+    uint32_t disp12 = disp & 0xFFF;
+
+    return (op << 18) | (flags << 12) | disp12;
+  }
+
+  uint32_t pack_fmt4(uint8_t opcode,
+                   bool n, bool i, bool x, bool b, bool p, bool e,
+                   uint32_t addr)
+  {
+    uint32_t op = (opcode & 0x3F);
+
+    e = 1;
+    b = 0;
+    p = 0;
+
+    uint32_t flags =
+        (n << 5) |
+        (i << 4) |
+        (x << 3) |
+        (b << 2) |
+        (p << 1) |
+        (e << 0);
+
+    uint32_t addr20 = addr & 0xFFFFF;
+
+    return (op << 26) | (flags << 20) | addr20;
   }
 };
