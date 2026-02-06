@@ -1,0 +1,24 @@
+COPY    START   0
+FIRST   STL     RETADR
+        LDB     #LENGTH         .Qual a diferença de usar # aqui?
+        BASE    LENGTH
+CLOOP   +JSUB   RDREC
+        LDA     LENGTH
+        COMP    #0
+        JEQ     ENDFIL
+        +JSUB   WRREC
+        J       CLOOP
+ENDFIL  LDA     EOF
+        STA     BUFFER
+        LDA     #3
+        STA     LENGTH
+        +JSUB   WRREC
+        J       @RETADR
+EOF     BYTE    C'EOF'
+RETADR  RESW    1
+LENGTH  RESW    1
+BUFFER  RESB    4096
+RDREC   CLEAR   X
+        CLEAR   A
+        CLEAR   S
+        +LDT    #4096

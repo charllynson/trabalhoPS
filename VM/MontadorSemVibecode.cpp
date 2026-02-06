@@ -129,7 +129,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
 
       *****
-      Se o tamanho atual do buffer estiver no limite de 69 bytes de código objeto, encerrar buffer e escrever linha no txt
+      Se o tamanho atual do buffer estiver no limite de 69 caracteres hex de registro T, encerrar buffer e escrever linha no txt
       Se encontrarmos uma diretiva do tipo RESB e RESW, encerrar o T atual e começar outro no endereço logo após a lacuna 
       *****
 
@@ -229,6 +229,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
       // tratar de instruções especiais desse formato sem operandos
       if (instr == "RSUB") {
+        n=1; i=1; x=0; b=0; p=0; b=0;
         auto object = pack_fmt3(instruçoesFormato34[instr] >> 2, n,i,x,b,p,e, 0);       
         buffer += parseToHexWithPad(object, 6);
         address_count += 3;
@@ -264,6 +265,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
       }
 
       if (symbol_table.count(label)) {
+        // PRECISO MESMO USAR CASTING DOS OPERANDOS AQUI?
         std::int32_t displ = static_cast<int32_t>(symbol_table[label]) - static_cast<int32_t>(address_count);
 
         if (displ >= -2048 && displ <= 2047) {
@@ -380,7 +382,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         if (std::isdigit(static_cast<unsigned int>(operand[0]))) {
           buffer += parseToSignedHexWithPad(parseHexOpcode(operand), 6);
         } else if (symbol_table.count(operand)) {
-          buffer += parseToSignedHexWithPad(symbol_table[operand], 3);
+          buffer += parseToHexWithPad(symbol_table[operand], 6);
         }
       } else if (instr == "RESW") {
         if (buffer.length() > 7) {
