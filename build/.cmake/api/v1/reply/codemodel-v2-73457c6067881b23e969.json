@@ -7,6 +7,10 @@
 				{
 					"build" : ".",
 					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.1"
+					},
 					"projectIndex" : 0,
 					"source" : ".",
 					"targetIndexes" : 

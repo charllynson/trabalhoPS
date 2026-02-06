@@ -44,15 +44,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
     iss >> opcode;
 
-    std::cout << "Endereço atual do " << opcode << " é " << address_count << "\n";
-
-    // std::cout << "iss >> opcode : " << opcode << "\n";
-
-    // try {
-    //   hexa_opcode = parseHexOpcode(opcode);
-    // } catch (const std::exception& e) {
-    //   std::cerr << "Erro ao processar opcode: " << e.what() << "\n";
-    // }
+    std::cout << "Endereço atual do " << opcode << " é " << std::hex << std::uppercase << address_count << "\n";
 
     if (directives.count(opcode)) {
       if (opcode == "START") {
@@ -156,7 +148,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
   std::uint32_t baseAddress;
   std::string r1,r2;
 
-  std::uint64_t currentObjectCode = 0b000000000000;
+  std::vector<std::string> modifiers;
 
   // Parser do registro Header
   std::getline(file, line);
@@ -174,23 +166,15 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
           << std::right << std::setw(6) << std::setfill('0') << programLength
           << '\n';
 
-  address_count = 0;
+  address_count = programStartAddress;
 
   // Parser do registro T
   // Para cada registro novo, colocar T + address_count + row size + obj codes stackados
   buffer += "T";
   buffer += parseToHexWithPad(address_count, 6);
 
-  int m = 0;
   while (std::getline(file, line)) {
     std::istringstream ss(line);
-
-    if (buffer.length() == 69) {
-      outfile << buffer.substr(7).size() << buffer;
-      buffer.clear();
-      buffer += "T";
-      buffer += parseToHexWithPad(address_count, 6);
-    }
 
     // Ignorar rótulo SEMPRE
     if (line[0] != ' ' && line[0] != '\t') {
@@ -199,8 +183,31 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
       ss >> instr;
     }
 
+    int estimatedNextSize = 0;
+    if (instruçoesFormato2.count(instr)) estimatedNextSize = 4;
+    else if (instruçoesFormato34.count(instr)) estimatedNextSize = 6;
+
+    if (buffer.length() + estimatedNextSize > 69) {
+      outfile << "T"
+              << buffer.substr(1, 6) 
+              << parseToHexWithPad(buffer.substr(7).size() / 2, 2) 
+              << buffer.substr(7)
+              << "\n";
+      buffer.clear();
+      buffer += "T";
+      buffer += parseToHexWithPad(address_count, 6);
+    }
+
     // Parser para instruções de formato 2 (opcode 8bits | reg1 4bits | reg2 4bits)
     if (instruçoesFormato2.count(instr)) {
+      if (instr == "SHIFTR") {
+        buffer += parseToHexWithPad(instruçoesFormato2[instr], 2);
+        buffer += parseToHexWithPad(0x0, 1);
+        buffer += parseToHexWithPad(0x0, 1);
+        address_count += 2;
+        continue;
+      }
+
       ss >> r1 >> r2;
 
       // Posso usar packing de bits em vez disso
@@ -208,17 +215,27 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
       auto reg1 = parseToHexWithPad(registers[r1], 1);
       auto reg2 = parseToHexWithPad(registers[r2], 1);
 
-      buffer += instrOpcode, reg1, reg2;
+      buffer += instrOpcode;
+      buffer += reg1;
+      buffer += reg2;
 
       address_count += 2;
     } 
 
     // Parser para instruções de formato 3 ou 4
     else if (instruçoesFormato34.count(instr)) {
-      address_count += 3;
-
       bool n,i,x,b,p,e;
       e = false;
+
+      // tratar de instruções especiais desse formato sem operandos
+      if (instr == "RSUB") {
+        auto object = pack_fmt3(instruçoesFormato34[instr] >> 2, n,i,x,b,p,e, 0);       
+        buffer += parseToHexWithPad(object, 6);
+        address_count += 3;
+        continue;
+      }
+
+      address_count += 3;
 
       std::string label;
       ss >> label;
@@ -229,7 +246,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         i = 0;
         label = label.substr(1);
       }
-      if (label[0] == '#') {
+      else if (label[0] == '#') {
         n = 0;
         i = 1;
         label = label.substr(1);
@@ -237,15 +254,16 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         n = 1;
         i = 1;
       }
+
       size_t indexing = label.find_first_of(',');
       if (indexing != std::string::npos) {
-        label = label.substr(0, indexing+1);
+        label = label.substr(0, indexing);
         x = 1;
       } else {
         x = 0;
       }
 
-      if (symbol_table[label]) {
+      if (symbol_table.count(label)) {
         std::int32_t displ = static_cast<int32_t>(symbol_table[label]) - static_cast<int32_t>(address_count);
 
         if (displ >= -2048 && displ <= 2047) {
@@ -264,34 +282,175 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
             return 1;
           }
         }
+      } else if (std::isdigit(static_cast<unsigned char>(label[0]))){
+        resultingDispl = parseHexOpcode(label);
+        b = false;
+        p = false;
       } else {
-        // std::cout << "label value after before failing to parse it to integer: " << resultingDispl << "\n";
-        resultingDispl = std::stoi(label);
+        std::cerr << "Operando não numérico desconhecido. Abortando o programa...\n";
+        return false;
       }
       
       std::uint8_t opcode = instruçoesFormato34[instr];
 
       auto object = pack_fmt3(opcode >> 2, n,i,x,b,p,e, resultingDispl);
       buffer += parseToHexWithPad(object, 6);
-
     } 
-
     else if (instruçoesFormato34.count(instr.substr(1))) {
+      address_count += 4;
       bool n,i,x,b,p,e;
       e = true;
-      b = 0;
-      p = 0;
-    } 
+      b = false;
+      p = false;
 
+      std::string label;
+      ss >> label;
+      std::uint32_t resultingDispl;
+
+      if (label[0] == '@') {
+        n = true;
+        i = false;
+        label = label.substr(1);
+
+        resultingDispl = symbol_table[label];
+      } else if (label[0] == '#') {
+        n = false;
+        i = true;
+        label = label.substr(1);
+
+        resultingDispl = parseHexOpcode(label);
+      } else {
+        n = true;
+        i = true;
+        resultingDispl = symbol_table[label];
+      }
+
+      size_t indexing = label.find_first_of(',');
+      if (indexing != std::string::npos) {
+        label = label.substr(0, indexing+1);
+        x = 1;
+      } else {
+        x = 0;
+      }
+
+      std::uint8_t opcode = instruçoesFormato34[instr.substr(1)];
+      auto object = pack_fmt4(opcode >> 2, n,i,x,b,p,e, resultingDispl);
+      buffer += parseToHexWithPad(object, 8);
+
+      // Gerar registros M
+      if (symbol_table.count(label)) {
+        std::string currentModifier;
+        currentModifier += "M";
+        std::ostringstream oss;
+        // o endereço a ser modificado pelo carregador está no segundo byte da instrução,
+        // por isso o -4 + 1
+        oss << std::uppercase << std::hex 
+          << std::right << std::setw(6) << std::setfill('0')
+          << (address_count - 4) + 1
+          << std::right << std::setw(2) << 0x05;
+        modifiers.push_back(currentModifier += oss.str());
+      }
+    } 
     // Parser para diretivas
-    // else if (directives.count(instr)) {
-    //   if () {
-    //   } else if (instr == "END") {
-    //     break;
-    //   }
-    // }
+    else if (directives.count(instr)) {
+      std::string operand;
+      std::uint32_t hexa_operand;
+      if (instr == "END") {
+        // Agregando os registros M que indiquem as posições LOC + quantos nibbles modificar
+        if (buffer.length() > 7) {
+          outfile << "T"
+                << buffer.substr(1, 6) 
+                << parseToHexWithPad(buffer.substr(7).size() / 2, 2) 
+                << buffer.substr(7)
+                << "\n";
+        }
+        buffer.clear();
+        for (const auto& modifier : modifiers) {
+          outfile << modifier << "\n";
+        }
+        ss >> operand; 
+
+        std::uint32_t startExec = operand.empty() ? programStartAddress : symbol_table[operand];
+        outfile << "E" << parseToHexWithPad(startExec, 6);
+        return true;
+      } else if (instr == "WORD") {
+        address_count += 3;
+        ss >> operand;
+
+        if (std::isdigit(static_cast<unsigned int>(operand[0]))) {
+          buffer += parseToSignedHexWithPad(parseHexOpcode(operand), 6);
+        } else if (symbol_table.count(operand)) {
+          buffer += parseToSignedHexWithPad(symbol_table[operand], 3);
+        }
+      } else if (instr == "RESW") {
+        if (buffer.length() > 7) {
+          outfile << "T"
+                  << buffer.substr(1, 6)
+                  << parseToHexWithPad(buffer.substr(7).size() / 2, 2) 
+                  << buffer.substr(7) 
+                  << "\n";
+        }
+        buffer.clear();
+        ss >> operand;
+        hexa_operand = parseHexOpcode(operand);
+        address_count += 3 * hexa_operand;
+
+        buffer += "T";
+        buffer += parseToHexWithPad(address_count, 6);
+      } else if (instr == "RESB") {
+        if (buffer.length() > 7) {
+          outfile << "T"
+                  << buffer.substr(1, 6)
+                  << parseToHexWithPad(buffer.substr(7).size() / 2, 2) 
+                  << buffer.substr(7) 
+                  << "\n";
+        }
+        buffer.clear();
+        ss >> operand;
+        hexa_operand = parseHexOpcode(operand);
+        address_count += hexa_operand;
+
+        buffer += "T";
+        buffer += parseToHexWithPad(address_count, 6);
+      } else if (instr == "BYTE") {
+        // USAR parseHexOpcode COM STOI(OPCODE, 16)!!!!!!!!!
+        int count = 0;
+        ss >> operand;
+        size_t first = operand.find('\'');
+        size_t last = operand.find_last_of('\'');
+
+        if (operand[0] == 'C') {
+          if (first != std::string::npos && last != std::string::npos && last > first) {
+            count = last - first - 1;
+
+            for (auto it = operand.begin()+first+1; it != operand.begin()+last; ++it) {
+              buffer += parseToHexWithPad(static_cast<int>(*it), 2);
+            }
+          }
+        } else if (operand[0] == 'X') {
+          if (first != std::string::npos && last != std::string::npos && last > first) {
+            count = (last - first - 1)/2;
+          }
+
+          if ((last - first + 1) % 2) {
+            buffer += '0'; 
+          }
+          for (auto it = operand.begin()+first+1; it != operand.begin()+last; ++it) {
+            buffer += *it;
+          }
+        }
+        address_count += count;
+      } else if (instr == "BASE") {
+        ss >> operand;
+        if (symbol_table.count(operand)) {
+          baseAddress = symbol_table[operand];
+        } else {
+          baseAddress = parseHexOpcode(operand);
+        }
+      }
+    }
   }
 
 
-  return false;
+  return true;
 }

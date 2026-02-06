@@ -107,6 +107,27 @@ private:
     return oss.str();
   }
 
+  int parseHexOpcodeWithBase16(const std::string& opcode) {
+    try {
+      return std::stoi(opcode, nullptr, 16);
+    }
+    catch (const std::invalid_argument&) {
+      throw std::runtime_error("Opcode invalido (nao eh hexadecimal): " + opcode);
+    }
+    catch (const std::out_of_range&) {
+      throw std::runtime_error("Opcode hexadecimal fora do intervalo de int: " + opcode);
+    }
+  }
+
+  std::string parseToSignedHexWithPad(const std::int64_t value, const int width) {
+    std::ostringstream oss;
+    oss << std::uppercase << std::hex 
+        << std::right << std::setw(width) << std::setfill('0')
+        << value;
+
+    return oss.str();
+  }
+
   uint32_t pack_fmt3(uint8_t opcode,
                    bool n, bool i, bool x, bool b, bool p, bool e,
                    int16_t disp)

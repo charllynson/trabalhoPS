@@ -1,0 +1,19 @@
+TESTE	START	0
+FIRST	STL	    RETADR end3
+	    LDB	    #TOTAL 6
+	    BASE	TOTAL
+	    LDA	    #5
+	    +LDT	#10000
+	    LDX	    #0
+	    ADDR	S T
+	    LDCH	STR,X
+	    J	    @PTR
+	    +STA	VALUE
+	    RSUB	
+VAL1	WORD	10
+RETADR	RESW	1
+TOTAL	RESW	1
+PTR	    WORD	VAL1
+STR	    BYTE	C'ABC'
+VALUE	RESW	1
+        END     FIRST
