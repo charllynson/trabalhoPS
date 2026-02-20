@@ -9,16 +9,17 @@
 #include <string>
 
 class Maquina{
-    private: CPU cpu;
+    public:
+    CPU cpu;
     Memoria memoria;
-
-    public: 
-    explicit Maquina(std::size_t tamanho_memoria = 1024);
+ 
+    Maquina(std::size_t tamanho_memoria);
     void carregarPrograma(const std::string& caminhoArquivo);
     void executar();
     void passo();
-    std::int32_t& getRegistradorPorNumero(std::uint8_t num);
 
+    private:
+    std::int32_t& getRegistradorPorNumero(std::uint8_t num);
 };
 
 

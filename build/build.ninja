@@ -73,6 +73,18 @@ build CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o: CXX_COMPILER__VM_SIC_u
   OBJECT_DIR = CMakeFiles/VM_SIC.dir
   OBJECT_FILE_DIR = CMakeFiles/VM_SIC.dir/VM
 
+build CMakeFiles/VM_SIC.dir/VM/Ligador.cpp.o: CXX_COMPILER__VM_SIC_unscanned_Debug /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Ligador.cpp || cmake_object_order_depends_target_VM_SIC
+  DEP_FILE = CMakeFiles/VM_SIC.dir/VM/Ligador.cpp.o.d
+  FLAGS = -g -std=gnu++20
+  OBJECT_DIR = CMakeFiles/VM_SIC.dir
+  OBJECT_FILE_DIR = CMakeFiles/VM_SIC.dir/VM
+
+build CMakeFiles/VM_SIC.dir/VM/Maquina_melhor.cpp.o: CXX_COMPILER__VM_SIC_unscanned_Debug /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Maquina_melhor.cpp || cmake_object_order_depends_target_VM_SIC
+  DEP_FILE = CMakeFiles/VM_SIC.dir/VM/Maquina_melhor.cpp.o.d
+  FLAGS = -g -std=gnu++20
+  OBJECT_DIR = CMakeFiles/VM_SIC.dir
+  OBJECT_FILE_DIR = CMakeFiles/VM_SIC.dir/VM
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target VM_SIC
@@ -81,7 +93,7 @@ build CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o: CXX_COMPILER__VM_SIC_u
 #############################################
 # Link the executable VM_SIC
 
-build VM_SIC: CXX_EXECUTABLE_LINKER__VM_SIC_Debug CMakeFiles/VM_SIC.dir/VM/main.cpp.o CMakeFiles/VM_SIC.dir/VM/Memoria.cpp.o CMakeFiles/VM_SIC.dir/VM/CPU.cpp.o CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o
+build VM_SIC: CXX_EXECUTABLE_LINKER__VM_SIC_Debug CMakeFiles/VM_SIC.dir/VM/main.cpp.o CMakeFiles/VM_SIC.dir/VM/Memoria.cpp.o CMakeFiles/VM_SIC.dir/VM/CPU.cpp.o CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o CMakeFiles/VM_SIC.dir/VM/Ligador.cpp.o CMakeFiles/VM_SIC.dir/VM/Maquina_melhor.cpp.o
   FLAGS = -g
   LINK_FLAGS = -rdynamic
   OBJECT_DIR = CMakeFiles/VM_SIC.dir

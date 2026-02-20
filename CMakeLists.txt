@@ -20,7 +20,10 @@ add_executable(VM_SIC
         ./VM/CPU.cpp
         ./VM/CPU.h
         ./VM/MontadorSemVibecode.cpp
-        ./VM/MontadorSemVibecode.h)
+        ./VM/MontadorSemVibecode.h
+        ./VM/Ligador.cpp
+        ./VM/Ligador.h
+        ./VM/Maquina_melhor.cpp)
 
 # target_link_libraries(VM_SIC
 #         Qt5::Core

@@ -9,10 +9,10 @@
 #include <string>
 
 class Maquina{
-    private: CPU cpu;
+    public:
+    CPU cpu;
     Memoria memoria;
 
-    public: 
     explicit Maquina(std::size_t tamanho_memoria = 1024);
     void carregarPrograma(const std::string& caminhoArquivo);
     void executar();

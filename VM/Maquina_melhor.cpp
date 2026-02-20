@@ -75,36 +75,38 @@ Isso implica em ler o opcode e inferir o formato da instrução (1, 2, 3/4).
 =========================================================================================
 */
 void Maquina::passo() {
+    /*
+      A MEMÓRIA NÃO É LIDA POR PALAVRAS!
+    */
     // Fornece um endereço do byte na memória e retorna o byte correspondente dentro da palavra
-    auto lerByte = [this](std::size_t endereco_byte) -> std::uint8_t {
-        std::size_t palavra_idx = endereco_byte / 3;
-        std::size_t deslocamento = endereco_byte % 3;
-        std::uint32_t valor = memoria.read(palavra_idx);
-        return (valor >> (16 - 8 * deslocamento)) & 0xFF;
-    };
+    //auto lerByte = [this](std::size_t endereco_byte) -> std::uint8_t {
+    //    std::size_t palavra_idx = endereco_byte / 3;
+    //    std::size_t deslocamento = endereco_byte % 3;
+    //    std::uint32_t valor = memoria.read(palavra_idx);
+    //    return (valor >> (16 - 8 * deslocamento)) & 0xFF;
+    //};
+    //// Ler uma palavra (3 bytes) da memória a partir de um endereço de byte
+    //auto lerPalavra = [this, &lerByte](std::size_t endereco_byte) -> std::uint32_t {
+    //    std::uint8_t b1 = lerByte(endereco_byte);
+    //    std::uint8_t b2 = lerByte(endereco_byte + 1);
+    //    std::uint8_t b3 = lerByte(endereco_byte + 2);
+    //    return (b1 << 16) | (b2 << 8) | b3;
+    //};
+    //// Escrever uma palavra (3 bytes) na memória a partir de um endereço de byte
+    //auto escreverPalavra = [this](std::size_t endereco_byte, std::uint32_t valor) {
+    //    memoria.setByte(endereco_byte, (valor >> 16) & 0xFF);
+    //    memoria.setByte(endereco_byte + 1, (valor >> 8) & 0xFF);
+    //    memoria.setByte(endereco_byte + 2, valor & 0xFF);
+    //};
 
-    // Ler uma palavra (3 bytes) da memória a partir de um endereço de byte
-    auto lerPalavra = [this, &lerByte](std::size_t endereco_byte) -> std::uint32_t {
-        std::uint8_t b1 = lerByte(endereco_byte);
-        std::uint8_t b2 = lerByte(endereco_byte + 1);
-        std::uint8_t b3 = lerByte(endereco_byte + 2);
-        return (b1 << 16) | (b2 << 8) | b3;
-    };
-
-    // Escrever uma palavra (3 bytes) na memória a partir de um endereço de byte
-    auto escreverPalavra = [this](std::size_t endereco_byte, std::uint32_t valor) {
-        memoria.setByte(endereco_byte, (valor >> 16) & 0xFF);
-        memoria.setByte(endereco_byte + 1, (valor >> 8) & 0xFF);
-        memoria.setByte(endereco_byte + 2, valor & 0xFF);
-    };
-
-    std::size_t pc_inicial = cpu.r.PC;
-    std::uint8_t byte1 = lerByte(pc_inicial);
+    auto pc_inicial = cpu.r.PC;
+    std::uint8_t byte1 = memoria.read(pc_inicial);
 
     // Resgatar os 6 bits mais significativos
+    // 0xFC = 1111 1100
     std::uint8_t opcode = byte1 & 0xFC;
 
-    // Formato 1 byte
+    // Formato do RSUB byte
     if (opcode == 0x4C) { // RSUB (Formato 1)
         cpu.r.PC = cpu.r.L;
         std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";

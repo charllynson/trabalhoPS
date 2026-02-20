@@ -1,6 +1,6 @@
 TESTE	START	0
-FIRST	STL	    RETADR end3
-	    LDB	    #TOTAL 6
+FIRST	STL	    RETADR 
+	    LDB	    #TOTAL 
 	    BASE	TOTAL
 	    LDA	    #5
 	    +LDT	#10000

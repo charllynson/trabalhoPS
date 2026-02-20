@@ -17,6 +17,8 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
   */
 
   std::unordered_map<std::string, std::uint32_t> symbol_table;
+  std::unordered_set<std::string> extdefs;
+  std::unordered_set<std::string> extrefs;
   std::string line;
   std::ifstream file(caminhoArquivoFonte);
   std::uint32_t address_count = 0;
@@ -92,6 +94,32 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         }
 
         address_count += count;
+      } else if (opcode == "EXTDEF") {
+        std::string symbol, remaining_line;
+        std::getline(iss, remaining_line);
+        std::stringstream ss_args(remaining_line);
+
+        while (std::getline(ss_args, symbol, ',')) {
+          size_t start = symbol.find_first_not_of(" \t");
+          size_t end = symbol.find_last_not_of(" \t");
+          if (start != std::string::npos) {
+            symbol = symbol.substr(start, end - start + 1);
+            extdefs.insert(symbol);
+          }
+        }
+      } else if (opcode == "EXTREF") {
+        std::string symbol, remaining_line;
+        std::getline(iss, remaining_line);
+        std::stringstream ss_args(remaining_line);
+
+        while (std::getline(ss_args, symbol, ',')) {
+          size_t start = symbol.find_first_not_of(" \t");
+          size_t end = symbol.find_last_not_of(" \t");
+          if (start != std::string::npos) {
+            symbol = symbol.substr(start, end - start + 1);
+            extrefs.insert(symbol);
+          }
+        }
       }
     } else if (instruçoesFormato2.count(opcode)) {
       address_count += 2;
@@ -99,6 +127,31 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
       address_count += 3;
     } else if (instruçoesFormato34.count(opcode.substr(1))) {
       address_count += 4;
+    }
+
+    if (opcode == "EQU") {
+      std::string operand;
+      iss >> operand;
+      // pegar o restante caso a expressão tenha espaços
+      std::string rest;
+      std::getline(iss, rest);
+      operand += rest;
+      std::string cleanOperand;
+      for (char c : operand) {
+        if (c != ' ' && c != '\t') cleanOperand += c;
+      }
+
+      if (cleanOperand == "*") {
+        symbol_table[label] = address_count;
+      } else {
+        try {
+          ExprResult result = evaluateExpression(cleanOperand, symbol_table, extrefs, address_count);
+          symbol_table[label] = static_cast<uint32_t>(result.value);
+        } catch (const std::exception& e) {
+          std::cerr << "Erro ao avaliar EQU para " << label << ": " << e.what() << "\n";
+          return false;
+        }
+      }
     }
   }
 
@@ -168,6 +221,30 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
   address_count = programStartAddress;
 
+  // INSERIR DIRETIVAS D
+  if (!extdefs.empty()) {
+    outfile << "D";
+    for (const auto& label : extdefs) {
+      if (symbol_table.count(label)) {
+        outfile << std::left << std::setw(6) << std::setfill(' ') << label
+                << std::uppercase << std::hex
+                << std::right << std::setw(6) << std::setfill('0') << symbol_table[label];
+      } else {
+        std::cerr << "Não foi possível achar um endereço para ser externalizado: " << label << "\n";
+      }
+    }
+    outfile << "\n";
+  }
+
+  // INSERIR DIRETIVAS R
+  if (!extrefs.empty()) {
+    outfile << "R";
+    for (const auto& label : extrefs) {
+      outfile << std::left << std::setw(6) << std::setfill(' ') << label;
+    }
+    outfile << "\n";
+  }
+
   // Parser do registro T
   // Para cada registro novo, colocar T + address_count + row size + obj codes stackados
   buffer += "T";
@@ -229,7 +306,7 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
       // tratar de instruções especiais desse formato sem operandos
       if (instr == "RSUB") {
-        n=1; i=1; x=0; b=0; p=0; b=0;
+        n=1; i=1; x=0; b=0; p=0;
         auto object = pack_fmt3(instruçoesFormato34[instr] >> 2, n,i,x,b,p,e, 0);       
         buffer += parseToHexWithPad(object, 6);
         address_count += 3;
@@ -240,20 +317,17 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
       std::string label;
       ss >> label;
-      std::int16_t resultingDispl;
+      std::int16_t resultingDispl = 0;
 
       if (label[0] == '@') {
-        n = 1;
-        i = 0;
+        n = 1; i = 0;
         label = label.substr(1);
       }
       else if (label[0] == '#') {
-        n = 0;
-        i = 1;
+        n = 0; i = 1;
         label = label.substr(1);
-      }  else {
-        n = 1;
-        i = 1;
+      } else {
+        n = 1; i = 1;
       }
 
       size_t indexing = label.find_first_of(',');
@@ -264,37 +338,66 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         x = 0;
       }
 
-      if (symbol_table.count(label)) {
-        // PRECISO MESMO USAR CASTING DOS OPERANDOS AQUI?
-        std::int32_t displ = static_cast<int32_t>(symbol_table[label]) - static_cast<int32_t>(address_count);
+      // Tentar avaliar como expressão
+      try {
+        ExprResult result = evaluateExpression(label, symbol_table, extrefs, address_count);
 
-        if (displ >= -2048 && displ <= 2047) {
-          // 12 bits inferiores
-          resultingDispl = displ & 0xFFF;
-          p = true;
-          b = false;
-        } else {
-          std::int32_t dispBase = static_cast<int32_t>(symbol_table[label]) - static_cast<int32_t>(baseAddress);
-          if (dispBase >= 0 && dispBase <= 4095) {
-            b = true;
+        if (result.isAbsolute() && result.externalRefs.empty()) {
+          // Operando absoluto (constante numérica ou expressão absoluta como BUFFEND-BUFFER)
+          if (n == 0 && i == 1) {
+            // Imediato com valor absoluto: sem PC-relativo
+            resultingDispl = result.value & 0xFFF;
             p = false;
-            resultingDispl = dispBase & 0xFFF;
+            b = false;
           } else {
-            std::cerr << "Endereço fora dos limites.\n";
-            return 1;
+            // Tentar PC-relativo
+            std::int32_t displ = result.value - static_cast<int32_t>(address_count);
+            if (displ >= -2048 && displ <= 2047) {
+              resultingDispl = displ & 0xFFF;
+              p = true;
+              b = false;
+            } else {
+              std::int32_t dispBase = result.value - static_cast<int32_t>(baseAddress);
+              if (dispBase >= 0 && dispBase <= 4095) {
+                b = true;
+                p = false;
+                resultingDispl = dispBase & 0xFFF;
+              } else {
+                std::cerr << "Endereço fora dos limites para formato 3: " << label << "\n";
+                return false;
+              }
+            }
           }
+        } else if (result.isRelocatable() && result.externalRefs.empty()) {
+          // Símbolo relocável local — usar PC-relativo ou Base
+          std::int32_t displ = result.value - static_cast<int32_t>(address_count);
+          if (displ >= -2048 && displ <= 2047) {
+            resultingDispl = displ & 0xFFF;
+            p = true;
+            b = false;
+          } else {
+            std::int32_t dispBase = result.value - static_cast<int32_t>(baseAddress);
+            if (dispBase >= 0 && dispBase <= 4095) {
+              b = true;
+              p = false;
+              resultingDispl = dispBase & 0xFFF;
+            } else {
+              std::cerr << "Endereço fora dos limites para formato 3: " << label << "\n";
+              return false;
+            }
+          }
+        } else if (!result.externalRefs.empty()) {
+          // Referência externa em formato 3 — normalmente erro, deveria ser formato 4
+          std::cerr << "Referencia externa '" << label 
+                    << "' requer formato 4 (prefixo +)\n";
+          return false;
         }
-      } else if (std::isdigit(static_cast<unsigned char>(label[0]))){
-        resultingDispl = parseHexOpcode(label);
-        b = false;
-        p = false;
-      } else {
-        std::cerr << "Operando não numérico desconhecido. Abortando o programa...\n";
+      } catch (const std::exception& e) {
+        std::cerr << "Erro ao avaliar operando formato 3: " << e.what() << "\n";
         return false;
       }
       
       std::uint8_t opcode = instruçoesFormato34[instr];
-
       auto object = pack_fmt3(opcode >> 2, n,i,x,b,p,e, resultingDispl);
       buffer += parseToHexWithPad(object, 6);
     } 
@@ -307,51 +410,45 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
 
       std::string label;
       ss >> label;
-      std::uint32_t resultingDispl;
+      std::uint32_t resultingDispl = 0;
 
       if (label[0] == '@') {
-        n = true;
-        i = false;
+        n = true; i = false;
         label = label.substr(1);
-
-        resultingDispl = symbol_table[label];
       } else if (label[0] == '#') {
-        n = false;
-        i = true;
+        n = false; i = true;
         label = label.substr(1);
-
-        resultingDispl = parseHexOpcode(label);
       } else {
-        n = true;
-        i = true;
-        resultingDispl = symbol_table[label];
+        n = true; i = true;
       }
 
       size_t indexing = label.find_first_of(',');
       if (indexing != std::string::npos) {
-        label = label.substr(0, indexing+1);
-        x = 1;
+        label = label.substr(0, indexing);
+        x = true;
       } else {
-        x = 0;
+        x = false;
+      }
+
+      try {
+        ExprResult result = evaluateExpression(label, symbol_table, extrefs, address_count);
+        resultingDispl = static_cast<uint32_t>(result.value) & 0xFFFFF;
+
+        // Gerar M records para formato 4 (5 nibbles = 20 bits de endereço)
+        // O campo de endereço começa no byte +1 da instrução
+        uint32_t modAddr = (address_count - 4) + 1;
+        auto mrecords = generateMRecords(result, modAddr, 5, programName);
+        for (auto& m : mrecords) {
+          modifiers.push_back(std::move(m));
+        }
+      } catch (const std::exception& e) {
+        std::cerr << "Erro ao avaliar operando formato 4: " << e.what() << "\n";
+        return false;
       }
 
       std::uint8_t opcode = instruçoesFormato34[instr.substr(1)];
       auto object = pack_fmt4(opcode >> 2, n,i,x,b,p,e, resultingDispl);
       buffer += parseToHexWithPad(object, 8);
-
-      // Gerar registros M
-      if (symbol_table.count(label)) {
-        std::string currentModifier;
-        currentModifier += "M";
-        std::ostringstream oss;
-        // o endereço a ser modificado pelo carregador está no segundo byte da instrução,
-        // por isso o -4 + 1
-        oss << std::uppercase << std::hex 
-          << std::right << std::setw(6) << std::setfill('0')
-          << (address_count - 4) + 1
-          << std::right << std::setw(2) << 0x05;
-        modifiers.push_back(currentModifier += oss.str());
-      }
     } 
     // Parser para diretivas
     else if (directives.count(instr)) {
@@ -373,17 +470,36 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         ss >> operand; 
 
         std::uint32_t startExec = operand.empty() ? programStartAddress : symbol_table[operand];
-        outfile << "E" << parseToHexWithPad(startExec, 6);
+        outfile << "E" << parseToHexWithPad(startExec, 6) << "\n";
         return true;
       } else if (instr == "WORD") {
         address_count += 3;
         ss >> operand;
 
-        if (std::isdigit(static_cast<unsigned int>(operand[0]))) {
-          buffer += parseToSignedHexWithPad(parseHexOpcode(operand), 6);
-        } else if (symbol_table.count(operand)) {
-          buffer += parseToHexWithPad(symbol_table[operand], 6);
+        try {
+          ExprResult result = evaluateExpression(operand, symbol_table, extrefs, address_count);
+
+          // valor em compl de 2 para 24 bit
+          uint32_t wordVal = static_cast<uint32_t>(result.value) & 0xFFFFFF;
+
+          buffer += parseToSignedHexWithPad(wordVal, 6);
+
+          // gerar M records
+          auto mrecords = generateMRecords(result, address_count - 3, 6, programName);
+          for (auto& m : mrecords) {
+            modifiers.push_back(std::move(m));
+          }
+        } catch (const std::exception& e) {
+          std::cerr << "Erro ao avaliar WORD: " << e.what() << "\n";
+          return false;
         }
+
+        // Código sem expressão
+        // if (std::isdigit(static_cast<unsigned int>(operand[0]))) {
+        //   buffer += parseToSignedHexWithPad(parseHexOpcode(operand), 6);
+        // } else if (symbol_table.count(operand)) {
+        //   buffer += parseToHexWithPad(symbol_table[operand], 6);
+        // }
       } else if (instr == "RESW") {
         if (buffer.length() > 7) {
           outfile << "T"
@@ -449,6 +565,8 @@ bool MontadorSemVibecode::montar(const std::string& caminhoArquivoFonte, const s
         } else {
           baseAddress = parseHexOpcode(operand);
         }
+      } else if (instr == "EQU") {
+        continue;
       }
     }
   }

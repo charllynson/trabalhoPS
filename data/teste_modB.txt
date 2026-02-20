@@ -1,0 +1,8 @@
+PROGB   START   0
+        EXTDEF  DOSOMA
+        EXTREF  VALOR
+DOSOMA  +LDA    VALOR
+        ADD     CINCO
+        RSUB
+CINCO   WORD    5
+        END     DOSOMA

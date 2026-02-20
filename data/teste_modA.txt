@@ -1,0 +1,10 @@
+PROGA   START   0
+        EXTDEF  VALOR
+        EXTREF  DOSOMA
+FIRST   LDA     VALOR
+        +JSUB   DOSOMA
+        STA     RESULT
+HALT    J       HALT
+VALOR   WORD    7
+RESULT  RESW    1
+        END     FIRST

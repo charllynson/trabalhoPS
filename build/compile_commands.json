@@ -22,5 +22,17 @@
   "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/MontadorSemVibecode.cpp",
   "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/MontadorSemVibecode.cpp",
   "output": "CMakeFiles/VM_SIC.dir/VM/MontadorSemVibecode.cpp.o"
+},
+{
+  "directory": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build",
+  "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/Ligador.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Ligador.cpp",
+  "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Ligador.cpp",
+  "output": "CMakeFiles/VM_SIC.dir/VM/Ligador.cpp.o"
+},
+{
+  "directory": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/build",
+  "command": "/usr/bin/g++ -g -std=gnu++20 -o CMakeFiles/VM_SIC.dir/VM/Maquina_melhor.cpp.o -c /home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Maquina_melhor.cpp",
+  "file": "/home/jsfonseca/Projects/projetos-faculdade/trabalhoPS/VM/Maquina_melhor.cpp",
+  "output": "CMakeFiles/VM_SIC.dir/VM/Maquina_melhor.cpp.o"
 }
 ]
