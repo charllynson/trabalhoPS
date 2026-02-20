@@ -49,4 +49,6 @@ int main(int argc, char *argv[]) {
   } else {
     std::cerr << "Ligação falhou. Carregador não executado.\n";
   }
+
+  maquina.executar();
 }

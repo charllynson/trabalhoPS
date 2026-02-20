@@ -11,7 +11,7 @@ enum status {BIGGER = 1, EQUAL = 0, SMALLER = -1};
 
 struct Registradores {;
     std::int32_t A = 0;  // Acumulador
-    std::int32_t PC = 0; // Contador de programa
+    std::uint32_t PC = 0; // Contador de programa
     status SW = EQUAL; // Palavra de status
 
     std::int32_t X = 0;  // Registrador de índice

@@ -14,22 +14,22 @@ Exemplo: LDA #0xA1C (formato 3, imediato)
 opcode ni|xbpe |disp 12bits |
 =========================================================================================
 */
-void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
-    std::ifstream arquivo(caminhoArquivo, std::ios::binary);
-    if (!arquivo) {
-        std::cerr << "Erro ao abrir o arquivo: " << caminhoArquivo << std::endl;
-        return;
-    }
-
-    std::size_t endereco = 0;
-    int byte;
-    while((byte = arquivo.get()) != EOF) {
-        memoria.setByte(endereco++, static_cast<std::uint8_t>(byte));   
-    }
-
-    // início do programa
-    cpu.r.PC = 0;
-}
+// void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
+//     std::ifstream arquivo(caminhoArquivo, std::ios::binary);
+//     if (!arquivo) {
+//         std::cerr << "Erro ao abrir o arquivo: " << caminhoArquivo << std::endl;
+//         return;
+//     }
+// 
+//     std::size_t endereco = 0;
+//     int byte;
+//     while((byte = arquivo.get()) != EOF) {
+//         memoria.setByte(endereco++, static_cast<std::uint8_t>(byte));   
+//     }
+// 
+//     // início do programa
+//     cpu.r.PC = 0;
+// }
 
 /*
 =========================================================================================
@@ -39,13 +39,20 @@ Começar o loop de execução da máquina assim que o programa é carregado.
 void Maquina::executar() {
     bool rodando = true;
     while(rodando){
+        auto pc_antes = cpu.r.PC;
         passo();
-        //se PC ultrapassar o tamanho da memoria, para a execução
+
+        // Detectar self-loop (ex: J HALT onde HALT aponta para si mesmo)
+        if (cpu.r.PC == pc_antes) {
+            std::cout << "Halt detectado (loop no endereço 0x"
+                      << std::hex << cpu.r.PC << std::dec << ")" << std::endl;
+            rodando = false;
+        }
+        // Se PC ultrapassar o tamanho da memória, parar a execução
         if(cpu.r.PC >= memoria.getTamanhoBytes()) {
-            std::cout <<"Fim da execução " << std::endl;
+            std::cout << "Fim da execução" << std::endl;
             rodando = false; 
         }
-
     }
 }
 
@@ -65,6 +72,8 @@ std::int32_t& Maquina::getRegistradorPorNumero(std::uint8_t num) {
         case RegID::T: return cpu.r.T;
         default:
             std::cerr << "Registrador inválido: " << (int)num << std::endl;
+            static std::int32_t dummy = 0;
+            return dummy;
     }
 }
 
@@ -79,25 +88,28 @@ void Maquina::passo() {
       A MEMÓRIA NÃO É LIDA POR PALAVRAS!
     */
     // Fornece um endereço do byte na memória e retorna o byte correspondente dentro da palavra
-    //auto lerByte = [this](std::size_t endereco_byte) -> std::uint8_t {
-    //    std::size_t palavra_idx = endereco_byte / 3;
-    //    std::size_t deslocamento = endereco_byte % 3;
-    //    std::uint32_t valor = memoria.read(palavra_idx);
-    //    return (valor >> (16 - 8 * deslocamento)) & 0xFF;
-    //};
-    //// Ler uma palavra (3 bytes) da memória a partir de um endereço de byte
-    //auto lerPalavra = [this, &lerByte](std::size_t endereco_byte) -> std::uint32_t {
-    //    std::uint8_t b1 = lerByte(endereco_byte);
-    //    std::uint8_t b2 = lerByte(endereco_byte + 1);
-    //    std::uint8_t b3 = lerByte(endereco_byte + 2);
-    //    return (b1 << 16) | (b2 << 8) | b3;
-    //};
-    //// Escrever uma palavra (3 bytes) na memória a partir de um endereço de byte
-    //auto escreverPalavra = [this](std::size_t endereco_byte, std::uint32_t valor) {
-    //    memoria.setByte(endereco_byte, (valor >> 16) & 0xFF);
-    //    memoria.setByte(endereco_byte + 1, (valor >> 8) & 0xFF);
-    //    memoria.setByte(endereco_byte + 2, valor & 0xFF);
-    //};
+    // Ler um byte da memória
+    auto lerByte = [this](std::size_t endereco_byte) -> std::uint8_t {
+        return static_cast<std::uint8_t>(memoria.read(endereco_byte));
+    };
+
+    // Ler uma palavra (3 bytes) da memória, com extensão de sinal de 24→32 bits
+    auto lerPalavra = [this](std::size_t endereco_byte) -> std::int32_t {
+        std::uint32_t b1 = memoria.read(endereco_byte);
+        std::uint32_t b2 = memoria.read(endereco_byte + 1);
+        std::uint32_t b3 = memoria.read(endereco_byte + 2);
+        std::uint32_t word = (b1 << 16) | (b2 << 8) | b3;
+        // Extensão de sinal: 24 bits → 32 bits
+        if (word & 0x800000) word |= 0xFF000000;
+        return static_cast<std::int32_t>(word);
+    };
+
+    // Escrever uma palavra (3 bytes) na memória
+    auto escreverPalavra = [this](std::size_t endereco_byte, std::int32_t valor) {
+        memoria.setByte(endereco_byte,     (valor >> 16) & 0xFF);
+        memoria.setByte(endereco_byte + 1, (valor >> 8)  & 0xFF);
+        memoria.setByte(endereco_byte + 2,  valor        & 0xFF);
+    };
 
     auto pc_inicial = cpu.r.PC;
     std::uint8_t byte1 = memoria.read(pc_inicial);
@@ -106,19 +118,22 @@ void Maquina::passo() {
     // 0xFC = 1111 1100
     std::uint8_t opcode = byte1 & 0xFC;
 
+    /*
+      ESSA É UMA INSTRUÇÃO DE FORMATO 3
+    */
     // Formato do RSUB byte
-    if (opcode == 0x4C) { // RSUB (Formato 1)
-        cpu.r.PC = cpu.r.L;
-        std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
-        return; // Finaliza a execução do passo e começar novamente no PC atualizado
-    }
+    //if (opcode == 0x4C) { // RSUB (Formato 1)
+    //    cpu.r.PC = cpu.r.L;
+    //    std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
+    //    return; // Finaliza a execução do passo e começar novamente no PC atualizado
+    //}
     
     // Formato 2 bytes
     if (opcode == 0x90 || opcode == 0x04 || opcode == 0x98 || opcode == 0xAC ||
         opcode == 0xA0 || opcode == 0x9C || opcode == 0xA4 || opcode == 0xA8 ||
         opcode == 0x94 || opcode == 0xB8) {
         cpu.r.PC += 2; // Instruções de 2 bytes
-        std::uint8_t regs = lerByte(pc_inicial + 1);
+        std::uint8_t regs = memoria.read(pc_inicial + 1);
         std::uint8_t num_r1 = (regs >> 4) & 0x0F;
         std::uint8_t num_r2 = regs & 0x0F;
         
@@ -127,19 +142,19 @@ void Maquina::passo() {
         switch(opcode) {
             case 0x04: { // CLEAR r1
                 r1 = 0;
-                std::cout << "[EXEC] CLEAR - R" << (int)num_r1 << " = 0\n";
+                std::cout << "[EXEC] CLEAR - R1: " << (int)num_r1 << " = 0\n";
                 break;
             }
             case 0x90: { // ADDR r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 += r1;
-                std::cout << "[EXEC] ADDR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
+                std::cout << "[EXEC] ADDR - R2" << (int)num_r2 << " += R1" << (int)num_r1 << "\n";
                 break;
             }
             case 0x98: { // MULR r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 *= r1;
-                std::cout << "[EXEC] MULR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n";
+                std::cout << "[EXEC] MULR - R" << (int)num_r2 << " *= R" << (int)num_r1 << "\n";
                 break;
             }
             case 0xAC: { // RMO r1, r2
@@ -170,6 +185,7 @@ void Maquina::passo() {
             }
             case 0xA4: { // SHIFTL r1, n
                 auto& n = num_r2;
+                // +1 para permitir deslocamentos entre 1-16
                 int shift_amount = n + 1;
                 r1 <<= shift_amount;
                 std::cout << "[EXEC] SHIFTL - R" << (int)num_r1 << " <<= N" << (int)shift_amount << "\n";
@@ -214,7 +230,7 @@ void Maquina::passo() {
     bool i = byte1 & 1;
 
     // Extrair xbpe do segundo Byte
-    std::uint8_t byte2 = lerByte(pc_inicial + 1);
+    std::uint8_t byte2 = memoria.read(pc_inicial + 1);
     bool x = (byte2 >> 7) & 1;
     bool b = (byte2 >> 6) & 1;
     bool p = (byte2 >> 5) & 1;
@@ -227,49 +243,49 @@ void Maquina::passo() {
 
     if (e) { // Formato 4
         cpu.r.PC += 4;
-        std::uint8_t byte3 = lerByte(pc_inicial + 2);
-        std::uint8_t byte4 = lerByte(pc_inicial + 3);
+        std::uint8_t byte3 = memoria.read(pc_inicial + 2);
+        std::uint8_t byte4 = memoria.read(pc_inicial + 3);
         disp = ((byte2 & 0x0F) << 16) | (byte3 << 8) | byte4;
         target_address = disp;
     } else { // Formato 3
         cpu.r.PC += 3;
-        std::uint8_t byte3 = lerByte(pc_inicial + 2);
+        std::uint8_t byte3 = memoria.read(pc_inicial + 2);
         disp = ((byte2 & 0x0F) << 8) | byte3;
-        // Extensão de sinal para deslocamento de 12 bits (para PC e Base relative)
-        if (disp & 0x800) {
-            disp |= 0xFFFFF000;
-        }
-
-        if (p) { // PC-relative
+        
+        // Eu preciso adicionar essa lógica para extensão de sinal, se o bit 11 for 1
+        // então eu preciso colocar todos os bits remanescentes entre os 32 bits como 1.
+        // Eu não preciso fazer isso com o base, porque ele já é unsigned.
+        if (p) { // PC-relative (disp é signed 12-bit: -2048 a +2047)
+            if (disp & 0x800) disp |= 0xFFFFF000; // extensão de sinal
             target_address = cpu.r.PC + disp;
-        } else if (b) { // Base-relative
+        } else if (b) { // Base-relative (disp é unsigned 12-bit: 0 a 4095)
             target_address = cpu.r.B + disp;
         } else { // Direto
             target_address = disp;
         }
     }
 
-    // Endereçamento indexado
+    // Endereçamento indireto (n=1, i=0):
+    // target_address aponta para um endereço na memória que contém o EA real
+    if (n && !i) {
+        target_address = lerPalavra(target_address) & 0xFFFFFF;
+    }
+
+    // Endereçamento indexado (x=1): aplicável com simples (n=1,i=1) ou SIC (n=0,i=0)
     if (x) {
         target_address += cpu.r.X;
     }
 
     // Obtenção do operando
-    std::uint32_t operando;
+    std::int32_t operando;
 
-    // i==1 então Imediato
-    if (i) {
-        operando = target_address; // O "endereço" é o próprio valor
+    if (!n && i) {
+        // Imediato (n=0, i=1): target_address É o valor do operando
+        operando = static_cast<std::int32_t>(target_address);
     } else {
-        // Se for indireto, buscar o byte "target_address" e ler a palavra a partir dele
-        std::uint32_t endereco_efetivo = target_address;
-        
-        // endereço de um ponteiro
-        if (n) { 
-            endereco_efetivo = lerPalavra(target_address);
-        }
-        // endereço do operando
-        operando = lerPalavra(endereco_efetivo);
+        // Simples (n=1,i=1), Indireto (já resolvido), ou SIC (n=0,i=0):
+        // ler palavra (3 bytes) da memória no endereço efetivo
+        operando = lerPalavra(target_address);
     }
 
     // Execução da instrução
