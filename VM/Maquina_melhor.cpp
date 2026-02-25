@@ -2,34 +2,17 @@
 
 Maquina::Maquina(std::size_t tamanho_memoria) : memoria(tamanho_memoria){}
 
+void Maquina::log(const std::string& msg) {
+    if (logCallback) logCallback(msg);
+    else std::cout << msg;
+}
+
 /*
 =========================================================================================
-Carregar o programa na memória a partir de um arquivo binário.
-Cada byte do arquivo é lido e armazenado sequencialmente na memória da máquina.
-As instruções seguem o padrão de formato 1, 2, 3/4 conforme SIC/XE.
-Conseguimos distinguir of formatos 3/4 pela flag 'e' no quarto bit do terceiro nibble.
-
 Exemplo: LDA #0xA1C (formato 3, imediato)
 0000 0011 0000 1010 0001 1100 
 opcode ni|xbpe |disp 12bits |
 =========================================================================================
-*/
-// void Maquina::carregarPrograma(const std::string& caminhoArquivo) {
-//     std::ifstream arquivo(caminhoArquivo, std::ios::binary);
-//     if (!arquivo) {
-//         std::cerr << "Erro ao abrir o arquivo: " << caminhoArquivo << std::endl;
-//         return;
-//     }
-// 
-//     std::size_t endereco = 0;
-//     int byte;
-//     while((byte = arquivo.get()) != EOF) {
-//         memoria.setByte(endereco++, static_cast<std::uint8_t>(byte));   
-//     }
-// 
-//     // início do programa
-//     cpu.r.PC = 0;
-// }
 
 /*
 =========================================================================================
@@ -37,22 +20,9 @@ Começar o loop de execução da máquina assim que o programa é carregado.
 =========================================================================================
 */
 void Maquina::executar() {
-    bool rodando = true;
-    while(rodando){
-        auto pc_antes = cpu.r.PC;
-        passo();
-
-        // Detectar self-loop (ex: J HALT onde HALT aponta para si mesmo)
-        if (cpu.r.PC == pc_antes) {
-            std::cout << "Halt detectado (loop no endereço 0x"
-                      << std::hex << cpu.r.PC << std::dec << ")" << std::endl;
-            rodando = false;
-        }
-        // Se PC ultrapassar o tamanho da memória, parar a execução
-        if(cpu.r.PC >= memoria.getTamanhoBytes()) {
-            std::cout << "Fim da execução" << std::endl;
-            rodando = false; 
-        }
+    while (true) {
+        StepResult r = passo();
+        if (r != StepResult::OK) break;
     }
 }
 
@@ -83,7 +53,7 @@ Iniciar o passo da execução da instrução atual apontada pelo PC.
 Isso implica em ler o opcode e inferir o formato da instrução (1, 2, 3/4).
 =========================================================================================
 */
-void Maquina::passo() {
+StepResult Maquina::passo() {
     /*
       A MEMÓRIA NÃO É LIDA POR PALAVRAS!
     */
@@ -112,6 +82,13 @@ void Maquina::passo() {
     };
 
     auto pc_inicial = cpu.r.PC;
+
+    // Verificar se PC saiu da memória
+    if (pc_inicial >= memoria.getTamanhoBytes()) {
+        log("Fim da execução (PC fora da memória)\n");
+        return StepResult::HALT;
+    }
+
     std::uint8_t byte1 = memoria.read(pc_inicial);
 
     // Resgatar os 6 bits mais significativos
@@ -142,25 +119,25 @@ void Maquina::passo() {
         switch(opcode) {
             case 0x04: { // CLEAR r1
                 r1 = 0;
-                std::cout << "[EXEC] CLEAR - R1: " << (int)num_r1 << " = 0\n";
+                { std::ostringstream o; o << "[EXEC] CLEAR - R" << (int)num_r1 << " = 0\n"; log(o.str()); }
                 break;
             }
             case 0x90: { // ADDR r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 += r1;
-                std::cout << "[EXEC] ADDR - R2" << (int)num_r2 << " += R1" << (int)num_r1 << "\n";
+                { std::ostringstream o; o << "[EXEC] ADDR - R" << (int)num_r2 << " += R" << (int)num_r1 << "\n"; log(o.str()); }
                 break;
             }
             case 0x98: { // MULR r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 *= r1;
-                std::cout << "[EXEC] MULR - R" << (int)num_r2 << " *= R" << (int)num_r1 << "\n";
+                { std::ostringstream o; o << "[EXEC] MULR - R" << (int)num_r2 << " *= R" << (int)num_r1 << "\n"; log(o.str()); }
                 break;
             }
             case 0xAC: { // RMO r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 = r1;
-                std::cout << "[EXEC] RMO - R" << (int)num_r2 << " = R" << (int)num_r1 << "\n";
+                { std::ostringstream o; o << "[EXEC] RMO - R" << (int)num_r2 << " = R" << (int)num_r1 << "\n"; log(o.str()); }
                 break;
             }
             case 0xA0: { // COMPR r1, r2
@@ -174,13 +151,13 @@ void Maquina::passo() {
                 } else {
                     cpu.r.SW = BIGGER;
                 }
-                std::cout << "[EXEC] COMPR - R" << (int)num_r1 << " : R" << (int)num_r2 << "\n";
+                { std::ostringstream o; o << "[EXEC] COMPR - R" << (int)num_r1 << " : R" << (int)num_r2 << "\n"; log(o.str()); }
                 break;
             }
             case 0x9C: { // DIVR r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 /= r1;
-                std::cout << "[EXEC] DIVR - R" << (int)num_r2 << " /= R" << (int)num_r1 << "\n";
+                { std::ostringstream o; o << "[EXEC] DIVR - R" << (int)num_r2 << " /= R" << (int)num_r1 << "\n"; log(o.str()); }
                 break;    
             }
             case 0xA4: { // SHIFTL r1, n
@@ -188,20 +165,20 @@ void Maquina::passo() {
                 // +1 para permitir deslocamentos entre 1-16
                 int shift_amount = n + 1;
                 r1 <<= shift_amount;
-                std::cout << "[EXEC] SHIFTL - R" << (int)num_r1 << " <<= N" << (int)shift_amount << "\n";
+                { std::ostringstream o; o << "[EXEC] SHIFTL - R" << (int)num_r1 << " <<= N" << (int)shift_amount << "\n"; log(o.str()); }
                 break;
             }
             case 0xA8: { // SHIFTR r1, n
                 auto& n = num_r2;
                 int shift_amount = n + 1;
                 r1 >>= shift_amount;
-                std::cout << "[EXEC] SHIFTR - R" << (int)num_r1 << " >>= N" << (int)shift_amount << "\n";
+                { std::ostringstream o; o << "[EXEC] SHIFTR - R" << (int)num_r1 << " >>= N" << (int)shift_amount << "\n"; log(o.str()); }
                 break;
             }
             case 0x94: { // SUBR r1, r2
                 auto& r2 = getRegistradorPorNumero(num_r2);
                 r2 -= r1;
-                std::cout << "[EXEC] SUBR - R" << (int)num_r2 << " -= R" << (int)num_r1 << "\n";
+                { std::ostringstream o; o << "[EXEC] SUBR - R" << (int)num_r2 << " -= R" << (int)num_r1 << "\n"; log(o.str()); }
                 break;
             }
             case 0xB8: { // TIXR r1
@@ -214,13 +191,11 @@ void Maquina::passo() {
                 } else {
                     cpu.r.SW = BIGGER;
                 }
-                std::cout << "[EXEC] TIXR - X incrementado para " << cpu.r.X 
-                          << ". Comparando com R" << (int)num_r1 
-                          << " -> SW = " << cpu.r.SW << "\n";
+                { std::ostringstream o; o << "[EXEC] TIXR - X = " << cpu.r.X << ", cmp R" << (int)num_r1 << " -> SW=" << cpu.r.SW << "\n"; log(o.str()); }
                 break;
             }
         }
-        return;
+        return StepResult::OK;
     }
 
     // Formato 3/4
@@ -292,27 +267,31 @@ void Maquina::passo() {
     switch(opcode) {
         case 0x00: { // LDA m
             cpu.r.A = operando;
-            std::cout << "[EXEC] LDA - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] LDA - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x0C: { // STA m
             escreverPalavra(target_address, cpu.r.A);
-            std::cout << "[EXEC] STA - mem[" << target_address << "] = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] STA - mem[" << target_address << "] = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x18: { // ADD m
             cpu.r.A += operando;
-            std::cout << "[EXEC] ADD - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] ADD - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x3C: { // J m
             cpu.r.PC = target_address;
-            std::cout << "[EXEC] J - PC = " << cpu.r.PC << "\n";
+            { std::ostringstream o; o << "[EXEC] J - PC = " << cpu.r.PC << "\n"; log(o.str()); }
+            if (target_address == pc_inicial) {
+                log("Halt detectado (self-loop)\n");
+                return StepResult::HALT;
+            }
             break;
         }
         case 0x40: { // AND m
             cpu.r.A &= operando;
-            std::cout << "[EXEC] AND - A = " << cpu.r.A << " : m " << (int)operando << "\n";
+            { std::ostringstream o; o << "[EXEC] AND - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x28: { // COMP m
@@ -324,143 +303,136 @@ void Maquina::passo() {
                 cpu.r.SW = BIGGER;
             }
 
-            std::cout << "[EXEC] COMPR - A" << (int)cpu.r.A << " : m " << (int)operando << "\n";
+            { std::ostringstream o; o << "[EXEC] COMP - A=" << cpu.r.A << " m=" << operando << "\n"; log(o.str()); }
             break;
         }
         case 0x24: { // DIV m
             if (operando == 0) {
-                std::cerr << "[ERRO] Tentativa de divisão por zero, abortando processo";
-                return;
+                log("[ERRO] Divisão por zero\n");
+                return StepResult::ERROR;
             }
             cpu.r.A /= operando;
-            std::cout << "[EXEC] DIV - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] DIV - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x30: { // JEQ m
-            if (cpu.r.SW == EQUAL) {
-                cpu.r.PC = target_address;
-            }
-            std::cout << "[EXEC] JEQ";
+            if (cpu.r.SW == EQUAL) cpu.r.PC = target_address;
+            log("[EXEC] JEQ\n");
             break;
         }
         case 0x34: { // JGT m
-            if (cpu.r.SW == BIGGER) {
-                cpu.r.PC = target_address;
-            }
-            std::cout << "[EXEC] JGT";
+            if (cpu.r.SW == BIGGER) cpu.r.PC = target_address;
+            log("[EXEC] JGT\n");
             break;
         }
         case 0x38: { // JLT m
-            if (cpu.r.SW == SMALLER) {
-                cpu.r.PC = target_address;
-            }
-            std::cout << "[EXEC] JLT";
+            if (cpu.r.SW == SMALLER) cpu.r.PC = target_address;
+            log("[EXEC] JLT\n");
             break;
         }
         case 0x48: { // JSUB m
             cpu.r.L = cpu.r.PC;
             cpu.r.PC = target_address;
-            std::cout << "[EXEC] JSUB - L = " << cpu.r.L << ", PC = " << cpu.r.PC << "\n";
+            { std::ostringstream o; o << "[EXEC] JSUB - L=" << cpu.r.L << " PC=" << cpu.r.PC << "\n"; log(o.str()); }
             break;
         }
         case 0x68: { // LDB m
             cpu.r.B = operando;
-            std::cout << "[EXEC] LDB - B = " << cpu.r.B << "\n";
+            { std::ostringstream o; o << "[EXEC] LDB - B = " << cpu.r.B << "\n"; log(o.str()); }
             break;
         }
         case 0x50: { // LDCH m
             auto byte_carregado = lerByte(target_address);
             auto a_preservado = cpu.r.A & 0xFFFF00;
             cpu.r.A = a_preservado | byte_carregado;
-            std::cout << "[EXEC] LDCH - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] LDCH - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x08: { // LDL m
             cpu.r.L = operando;
-            std::cout << "[EXEC] LDL - L = " << cpu.r.L << "\n";
+            { std::ostringstream o; o << "[EXEC] LDL - L = " << cpu.r.L << "\n"; log(o.str()); }
             break;
         }
         case 0x6C: { // LDS m
             cpu.r.S = operando;
-            std::cout << "[EXEC] LDS - S = " << cpu.r.S << "\n";
+            { std::ostringstream o; o << "[EXEC] LDS - S = " << cpu.r.S << "\n"; log(o.str()); }
             break;
         }
         case 0x74: { // LDT m
             cpu.r.T = operando;
-            std::cout << "[EXEC] LDT - T = " << cpu.r.T << "\n";
+            { std::ostringstream o; o << "[EXEC] LDT - T = " << cpu.r.T << "\n"; log(o.str()); }
             break;
         }
         case 0x04: { // LDX m
             cpu.r.X = operando;
-            std::cout << "[EXEC] LDX - X = " << cpu.r.X << "\n";
+            { std::ostringstream o; o << "[EXEC] LDX - X = " << cpu.r.X << "\n"; log(o.str()); }
             break;
         }
         case 0x20: { // MUL m
             cpu.r.A *= operando;
-            std::cout << "[EXEC] MUL - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] MUL - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x44: { // OR m
             cpu.r.A |= operando;
-            std::cout << "[EXEC] OR - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] OR - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x4C: { // RSUB m
             cpu.r.PC = cpu.r.L;
-            std::cout << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n";
+            { std::ostringstream o; o << "[EXEC] RSUB - PC = " << cpu.r.PC << "\n"; log(o.str()); }
             break;
         }
         case 0x78: { // STB m 
             escreverPalavra(target_address, cpu.r.B);
-            std::cout << "[EXEC] STB - mem[" << target_address << "] = " << cpu.r.B << "\n";
+            { std::ostringstream o; o << "[EXEC] STB - mem[" << target_address << "] = " << cpu.r.B << "\n"; log(o.str()); }
             break;
         }
         case 0x54: { // STCH m
             std::uint8_t byte_para_armazenar = cpu.r.A & 0xFF;
             memoria.setByte(target_address, byte_para_armazenar);
-            std::cout << "[EXEC] STCH - mem[" << target_address << "] = " << (int)byte_para_armazenar << "\n";
+            { std::ostringstream o; o << "[EXEC] STCH - mem[" << target_address << "] = " << (int)byte_para_armazenar << "\n"; log(o.str()); }
             break;
         }
         case 0x14: { // STL m
             escreverPalavra(target_address, cpu.r.L);
-            std::cout << "[EXEC] STL - mem[" << target_address << "] = " << cpu.r.L << "\n";
+            { std::ostringstream o; o << "[EXEC] STL - mem[" << target_address << "] = " << cpu.r.L << "\n"; log(o.str()); }
             break;
         }
         case 0x7C: { // STS m
             escreverPalavra(target_address, cpu.r.S);
-            std::cout << "[EXEC] STS - mem[" << target_address << "] = " << cpu.r.S << "\n";
+            { std::ostringstream o; o << "[EXEC] STS - mem[" << target_address << "] = " << cpu.r.S << "\n"; log(o.str()); }
             break;
         }
         case 0x84: { // STT m
             escreverPalavra(target_address, cpu.r.T);
-            std::cout << "[EXEC] STT - mem[" << target_address << "] = " << cpu.r.T << "\n";
+            { std::ostringstream o; o << "[EXEC] STT - mem[" << target_address << "] = " << cpu.r.T << "\n"; log(o.str()); }
             break;  
         }
         case 0x10: { // STX m
             escreverPalavra(target_address, cpu.r.X);
-            std::cout << "[EXEC] STX - mem[" << target_address << "] = " << cpu.r.X << "\n";
+            { std::ostringstream o; o << "[EXEC] STX - mem[" << target_address << "] = " << cpu.r.X << "\n"; log(o.str()); }
             break;
         }
         case 0x1C: { // SUB m
             cpu.r.A -= operando;
-            std::cout << "[EXEC] SUB - A = " << cpu.r.A << "\n";
+            { std::ostringstream o; o << "[EXEC] SUB - A = " << cpu.r.A << "\n"; log(o.str()); }
             break;
         }
         case 0x2C: { // TIX m
             cpu.r.X++;
-            if (cpu.r.X < operando) {
-                cpu.r.SW = SMALLER;
-            } else if (cpu.r.X == operando) {
-                cpu.r.SW = EQUAL;
-            } else {
-                cpu.r.SW = BIGGER;
-            }
-            std::cout << "[EXEC] TIX - X incrementado para " << cpu.r.X 
-                      << ". Comparando com m " << (int)operando
-                      << " -> SW = " << cpu.r.SW << "\n";
+            if (cpu.r.X < operando) cpu.r.SW = SMALLER;
+            else if (cpu.r.X == operando) cpu.r.SW = EQUAL;
+            else cpu.r.SW = BIGGER;
+            { std::ostringstream o; o << "[EXEC] TIX - X=" << cpu.r.X << " m=" << operando << " SW=" << cpu.r.SW << "\n"; log(o.str()); }
             break;
         }
-        default:
-             std::cerr << "[ERRO] Opcode F3/F4 não implementado: 0x" << std::hex << (int)opcode << std::dec << std::endl;
+        default: {
+            std::ostringstream o;
+            o << "[ERRO] Opcode F3/F4 não implementado: 0x" << std::hex << (int)opcode << "\n";
+            log(o.str());
+            return StepResult::ERROR;
+        }
     }
+    return StepResult::OK;
 }

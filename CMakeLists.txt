@@ -1,35 +1,43 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.16)
 project(VM_SIC)
 
 set(CMAKE_CXX_STANDARD 20)
-# set(CMAKE_AUTOMOC ON)
-# set(CMAKE_AUTORCC ON)
-# set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOMOC ON)
 
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
-# find_package(Qt5 COMPONENTS
-#         Core
-#         Gui
-#         Widgets
-#         REQUIRED)
+# ── Arquivos comuns (backend) ──────────────────────────────
+set(BACKEND_SOURCES
+    ./VM/Memoria.cpp
+    ./VM/CPU.cpp
+    ./VM/MontadorSemVibecode.cpp
+    ./VM/Ligador.cpp
+    ./VM/Maquina_melhor.cpp
+)
 
-add_executable(VM_SIC 
-        ./VM/main.cpp
-        ./VM/Memoria.cpp
-        ./VM/Memoria.h
-        ./VM/CPU.cpp
-        ./VM/CPU.h
-        ./VM/MontadorSemVibecode.cpp
-        ./VM/MontadorSemVibecode.h
-        ./VM/Ligador.cpp
-        ./VM/Ligador.h
-        ./VM/Maquina_melhor.cpp)
+set(BACKEND_HEADERS
+    ./VM/Memoria.h
+    ./VM/CPU.h
+    ./VM/MontadorSemVibecode.h
+    ./VM/Ligador.h
+    ./VM/Maquina_melhor.h
+)
 
-# target_link_libraries(VM_SIC
-#         Qt5::Core
-#         Qt5::Gui
-#         Qt5::Widgets
-# )
+# ── Target CLI (terminal) ─────────────────────────────────
+add_executable(VM_SIC
+    ./VM/main.cpp
+    ${BACKEND_SOURCES}
+    ${BACKEND_HEADERS}
+)
 
-target_link_libraries(VM_SIC)
+# ── Target GUI (Qt6) ──────────────────────────────────────
+add_executable(VM_SIC_GUI
+    ./VM/main_gui.cpp
+    ./VM/MainWindow.cpp
+    ./VM/MainWindow.h
+    ${BACKEND_SOURCES}
+    ${BACKEND_HEADERS}
+)
+
+target_link_libraries(VM_SIC_GUI Qt6::Widgets)
 

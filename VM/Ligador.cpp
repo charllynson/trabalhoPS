@@ -80,6 +80,7 @@ void Ligador::writeField(std::uint32_t addr, int nibbles, int32_t value) {
 bool Ligador::LigadorRelocador(std::vector<std::string> modulos, std::uint32_t progaddr) {
 
   ESTAB.clear();
+  progAddr = progaddr;  // salvar para o CarregadorAbsoluto
 
   // ==========================================================
   //  PASSAGEM 1: Construir a ESTAB
