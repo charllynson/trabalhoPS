@@ -1,0 +1,15 @@
+# Build output
+build/
+
+# Arquivos obsoletos (substituídos por versões melhores)
+VM/Maquina.cpp
+VM/Maquina.h
+VM/Montador.cpp
+VM/Montador.h
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
