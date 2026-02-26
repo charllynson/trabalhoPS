@@ -74,8 +74,8 @@ O fluxo na GUI segue a ordem do pipeline:
 
 ### 4. Executar
 
-- **▶ Executar Tudo** — roda o programa até halt (self-loop) ou erro.
-- **⏭ Passo** — executa uma única instrução por vez (step-by-step), permitindo acompanhar a evolução dos registradores e da memória a cada passo.
+- **Executar Tudo** — roda o programa até halt (self-loop) ou erro.
+- **Passo** — executa uma única instrução por vez (step-by-step), permitindo acompanhar a evolução dos registradores e da memória a cada passo.
 
 ### 5. Painéis de inspeção
 
@@ -85,7 +85,7 @@ O fluxo na GUI segue a ordem do pipeline:
 
 ### 6. Reset
 
-- **↻ Reset** limpa a máquina, os registradores, a memória e o log, permitindo recomeçar.
+- **Reset** limpa a máquina, os registradores, a memória e o log, permitindo recomeçar.
 
 ## Estrutura do Projeto
 
